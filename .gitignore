@@ -1,0 +1,49 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+
+# VS stuff
+.vs
+build
+ipch
+x64
+*.sdf
+*.opensdf
+*.db
+*.opendb
+*.suo
+
+# VIM stuff
+*.swp
+
+# Xcode stuff
+build_xc
+
+*.user
+*.user.*
+*~
+
+# build system
+build.*/
+extdep/install
+extdep/download
+/cmake-build-*/
+
+*.pyc
+
+doc/html
+*.autosave
+node_modules/
+
+# vscode
+.vscode/
