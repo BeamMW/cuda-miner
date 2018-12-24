@@ -956,13 +956,14 @@ __host__ CudaSolver::CudaSolver(const std::string &aId, int aDeviceId)
 	, _deviceId(aDeviceId)
 {
 	const size_t memorySize = Equihash::MemoryUnitsCount * Equihash::MemoryUnitSize32 * sizeof(u32);
-
+#if DEEP_CUDA_DEBUG
 	_hostMemory.pairs[0] = nullptr;
 	_hostMemory.round[0] = nullptr;
 	_hostMemory.round[1] = nullptr;
 	_hostMemory.round[2] = nullptr;
 	_hostMemory.round[3] = nullptr;
 	_hostMemory.round[4] = nullptr;
+#endif
 	_memory.units[0] = nullptr;
 
 	ThrowIfCudaErrors(cudaGetDeviceProperties(&_deviceProps, _deviceId));
@@ -976,7 +977,7 @@ __host__ CudaSolver::CudaSolver(const std::string &aId, int aDeviceId)
 	ThrowIfCudaErrors(cudaDeviceReset());
 	ThrowIfCudaErrors(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync/* | cudaDeviceMapHost*/));
 	ThrowIfCudaErrors(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
-
+#if DEEP_CUDA_DEBUG
 	if (cudaHostAlloc(&_hostEq, sizeof(equi), cudaHostAllocDefault) != cudaSuccess) {
 		throw std::runtime_error("CUDA: failed to alloc memory");
 	}
@@ -1012,7 +1013,11 @@ __host__ CudaSolver::CudaSolver(const std::string &aId, int aDeviceId)
 	if (cudaHostAlloc(&_hostMemory.round[4], Equihash::BucketsCount*Equihash::SlotsCount * sizeof(uint2), cudaHostAllocDefault) != cudaSuccess) {
 		throw std::runtime_error("CUDA: failed to alloc memory");
 	}
-
+#else
+	if (cudaHostAlloc(&_solutions, sizeof(scontainerreal), cudaHostAllocDefault) != cudaSuccess) {
+		throw std::runtime_error("CUDA: failed to alloc memory");
+	}
+#endif
 	if (cudaMalloc((void**)&_deviceEq, sizeof(equi)) != cudaSuccess) {
 		throw std::runtime_error("CUDA: failed to alloc memory");
 	}
@@ -1106,9 +1111,7 @@ __host__ void CudaSolver::Solve(EquihashWork::Ref aWork, Listener &aListener)
 	cudaDeviceSynchronize();
 	uint64_t cycleDigit_5 = __rdtsc();
 #endif
-#if 0
-	ThrowIfCudaErrors(cudaMemcpy(_hostEq, &_deviceEq->edata.srealcont, sizeof(scontainerreal), cudaMemcpyDefault/*DeviceToHost*/));
-#else
+#if DEEP_CUDA_DEBUG
 	ThrowIfCudaErrors(cudaMemcpy(_hostEq, _deviceEq, sizeof(equi), cudaMemcpyDeviceToHost));
 	u32 m = 0;
 	for (u32 i = 0; i < Equihash::BucketsCount; i++) {
@@ -1117,6 +1120,8 @@ __host__ void CudaSolver::Solve(EquihashWork::Ref aWork, Listener &aListener)
 		}
 	}
 	scontainerreal *_solutions = &_hostEq->edata.srealcont;
+#else
+	ThrowIfCudaErrors(cudaMemcpy(_solutions, &_deviceEq->edata.srealcont, sizeof(scontainerreal), cudaMemcpyDefault/*DeviceToHost*/));
 #endif
 #if DO_METRICS
 	cudaDeviceSynchronize();
@@ -1169,7 +1174,7 @@ __host__ void CudaSolver::Solve(EquihashWork::Ref aWork, Listener &aListener)
 
 	aListener.OnHashDone();
 }
-#if 0
+#if DEEP_CUDA_DEBUG
 //=================================================================================================
 
 #include "CudaSolver-150-5-debug.cuh"
@@ -1236,9 +1241,7 @@ __host__ void CudaSolver::Test(blake2b_state &aState, Listener &aListener)
 	ThrowIfCudaErrors(cudaDeviceSynchronize());
 	uint64_t cycleDigit_5 = __rdtsc();
 #endif
-#if 0
-	ThrowIfCudaErrors(cudaMemcpy(_hostEq, &_deviceEq->edata.srealcont, sizeof(scontainerreal), cudaMemcpyDeviceToHost));
-#else
+#if DEEP_CUDA_DEBUG
 	ThrowIfCudaErrors(cudaMemcpy(_hostEq, _deviceEq, sizeof(equi), cudaMemcpyDeviceToHost));
 	u32 m[4] = { 0, 0, 0, 0 };
 	for (u32 i = 0; i < Equihash::BucketsCount; i++) {
@@ -1256,6 +1259,8 @@ __host__ void CudaSolver::Test(blake2b_state &aState, Listener &aListener)
 		}
 	}
 	scontainerreal *_solutions = &_hostEq->edata.srealcont;
+#else
+	ThrowIfCudaErrors(cudaMemcpy(_solutions, &_deviceEq->edata.srealcont, sizeof(scontainerreal), cudaMemcpyDeviceToHost));
 #endif
 #if DO_METRICS
 	ThrowIfCudaErrors(cudaDeviceSynchronize());
@@ -1311,6 +1316,7 @@ __host__ void CudaSolver::Test(blake2b_state &aState, Listener &aListener)
 #endif
 __host__ CudaSolver::~CudaSolver()
 {
+#if DEEP_CUDA_DEBUG
 	if (_hostEq) {
 		cudaFreeHost(_hostEq);
 		_hostEq = nullptr;
@@ -1350,7 +1356,12 @@ __host__ CudaSolver::~CudaSolver()
 		cudaFreeHost(_hostMemory.round[4]);
 		_hostMemory.round[4] = nullptr;
 	}
-
+#else
+	if (_solutions) {
+		cudaFree(_solutions);
+		_solutions = nullptr;
+	}
+#endif
 	if (_memory.baseMap) {
 		cudaFree(_memory.baseMap);
 		_memory.baseMap = nullptr;

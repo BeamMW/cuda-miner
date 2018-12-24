@@ -36,6 +36,8 @@ typedef unsigned char uchar;
 struct packer_default;
 struct packer_cantor;
 
+#define	DEEP_CUDA_DEBUG	0
+
 #define WN				150
 #define WK				5
 #define PROOFSIZE		(1<<WK)
@@ -67,12 +69,16 @@ protected:
 	int					_deviceId;
 	cudaDeviceProp		_deviceProps;
 	equi				*_deviceEq;
+#if DEEP_CUDA_DEBUG
 	equi				*_hostEq;
 	struct {
 		u32		*baseMap = nullptr;
 		uint2	*pairs[4];
 		u32		*round[5];
 	}					_hostMemory;
+#else
+	scontainerreal	*_solutions = nullptr;
+#endif
 	struct {
 		u32		*baseMap = nullptr;
 		u32		*units[13];
