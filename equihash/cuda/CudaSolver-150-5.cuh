@@ -33,7 +33,7 @@ struct Equihash
 #else
 	const static u32 SlotsCount		= (2 * RestsCount + 256);
 #endif
-	const static u32 SlotsMask		= (SlotsCount - 1);
+//	const static u32 SlotsMask		= (SlotsCount - 1);
 	const static u32 ItemsPerBlake	= (512 / WN);
 	const static u32 BlakesCount	= ((ItemsCount + ItemsPerBlake - 1) / ItemsPerBlake);
 
@@ -797,78 +797,78 @@ __global__ void stage_last(equi *eq, BaseMap aBaseMap, uint2 *aPairs, Items2 aIn
 						if (ta == cache[ik]) {
 							indexes[0] = pairsTree[4][bucketid][ij];
 
-							indexes[1] = pairsTree[3][indexes[0].y >> 16][indexes[0].y & Equihash::SlotsMask];
-							indexes[0] = pairsTree[3][indexes[0].x >> 16][indexes[0].x & Equihash::SlotsMask];
+							indexes[1] = pairsTree[3][indexes[0].y >> 16][indexes[0].y & 0xffff];
+							indexes[0] = pairsTree[3][indexes[0].x >> 16][indexes[0].x & 0xffff];
 
-							indexes[3] = pairsTree[2][indexes[1].y >> 16][indexes[1].y & Equihash::SlotsMask];
-							indexes[2] = pairsTree[2][indexes[1].x >> 16][indexes[1].x & Equihash::SlotsMask];
-							indexes[1] = pairsTree[2][indexes[0].y >> 16][indexes[0].y & Equihash::SlotsMask];
-							indexes[0] = pairsTree[2][indexes[0].x >> 16][indexes[0].x & Equihash::SlotsMask];
+							indexes[3] = pairsTree[2][indexes[1].y >> 16][indexes[1].y & 0xffff];
+							indexes[2] = pairsTree[2][indexes[1].x >> 16][indexes[1].x & 0xffff];
+							indexes[1] = pairsTree[2][indexes[0].y >> 16][indexes[0].y & 0xffff];
+							indexes[0] = pairsTree[2][indexes[0].x >> 16][indexes[0].x & 0xffff];
 
-							indexes[7] = pairsTree[1][indexes[3].y >> 16][indexes[3].y & Equihash::SlotsMask];
-							indexes[6] = pairsTree[1][indexes[3].x >> 16][indexes[3].x & Equihash::SlotsMask];
-							indexes[5] = pairsTree[1][indexes[2].y >> 16][indexes[2].y & Equihash::SlotsMask];
-							indexes[4] = pairsTree[1][indexes[2].x >> 16][indexes[2].x & Equihash::SlotsMask];
-							indexes[3] = pairsTree[1][indexes[1].y >> 16][indexes[1].y & Equihash::SlotsMask];
-							indexes[2] = pairsTree[1][indexes[1].x >> 16][indexes[1].x & Equihash::SlotsMask];
-							indexes[1] = pairsTree[1][indexes[0].y >> 16][indexes[0].y & Equihash::SlotsMask];
-							indexes[0] = pairsTree[1][indexes[0].x >> 16][indexes[0].x & Equihash::SlotsMask];
+							indexes[7] = pairsTree[1][indexes[3].y >> 16][indexes[3].y & 0xffff];
+							indexes[6] = pairsTree[1][indexes[3].x >> 16][indexes[3].x & 0xffff];
+							indexes[5] = pairsTree[1][indexes[2].y >> 16][indexes[2].y & 0xffff];
+							indexes[4] = pairsTree[1][indexes[2].x >> 16][indexes[2].x & 0xffff];
+							indexes[3] = pairsTree[1][indexes[1].y >> 16][indexes[1].y & 0xffff];
+							indexes[2] = pairsTree[1][indexes[1].x >> 16][indexes[1].x & 0xffff];
+							indexes[1] = pairsTree[1][indexes[0].y >> 16][indexes[0].y & 0xffff];
+							indexes[0] = pairsTree[1][indexes[0].x >> 16][indexes[0].x & 0xffff];
 
 							indexes[8] = pairsTree[4][bucketid][ik];
 
-							indexes[9] = pairsTree[3][indexes[8].y >> 16][indexes[8].y & Equihash::SlotsMask];
-							indexes[8] = pairsTree[3][indexes[8].x >> 16][indexes[8].x & Equihash::SlotsMask];
+							indexes[9] = pairsTree[3][indexes[8].y >> 16][indexes[8].y & 0xffff];
+							indexes[8] = pairsTree[3][indexes[8].x >> 16][indexes[8].x & 0xffff];
 
-							indexes[11] = pairsTree[2][indexes[9].y >> 16][indexes[9].y & Equihash::SlotsMask];
-							indexes[10] = pairsTree[2][indexes[9].x >> 16][indexes[9].x & Equihash::SlotsMask];
-							indexes[9] = pairsTree[2][indexes[8].y >> 16][indexes[8].y & Equihash::SlotsMask];
-							indexes[8] = pairsTree[2][indexes[8].x >> 16][indexes[8].x & Equihash::SlotsMask];
+							indexes[11] = pairsTree[2][indexes[9].y >> 16][indexes[9].y & 0xffff];
+							indexes[10] = pairsTree[2][indexes[9].x >> 16][indexes[9].x & 0xffff];
+							indexes[9] = pairsTree[2][indexes[8].y >> 16][indexes[8].y & 0xffff];
+							indexes[8] = pairsTree[2][indexes[8].x >> 16][indexes[8].x & 0xffff];
 
-							indexes[15] = pairsTree[1][indexes[11].y >> 16][indexes[11].y & Equihash::SlotsMask];
-							indexes[14] = pairsTree[1][indexes[11].x >> 16][indexes[11].x & Equihash::SlotsMask];
-							indexes[13] = pairsTree[1][indexes[10].y >> 16][indexes[10].y & Equihash::SlotsMask];
-							indexes[12] = pairsTree[1][indexes[10].x >> 16][indexes[10].x & Equihash::SlotsMask];
-							indexes[11] = pairsTree[1][indexes[9].y >> 16][indexes[9].y & Equihash::SlotsMask];
-							indexes[10] = pairsTree[1][indexes[9].x >> 16][indexes[9].x & Equihash::SlotsMask];
-							indexes[9] = pairsTree[1][indexes[8].y >> 16][indexes[8].y & Equihash::SlotsMask];
-							indexes[8] = pairsTree[1][indexes[8].x >> 16][indexes[8].x & Equihash::SlotsMask];
+							indexes[15] = pairsTree[1][indexes[11].y >> 16][indexes[11].y & 0xffff];
+							indexes[14] = pairsTree[1][indexes[11].x >> 16][indexes[11].x & 0xffff];
+							indexes[13] = pairsTree[1][indexes[10].y >> 16][indexes[10].y & 0xffff];
+							indexes[12] = pairsTree[1][indexes[10].x >> 16][indexes[10].x & 0xffff];
+							indexes[11] = pairsTree[1][indexes[9].y >> 16][indexes[9].y & 0xffff];
+							indexes[10] = pairsTree[1][indexes[9].x >> 16][indexes[9].x & 0xffff];
+							indexes[9] = pairsTree[1][indexes[8].y >> 16][indexes[8].y & 0xffff];
+							indexes[8] = pairsTree[1][indexes[8].x >> 16][indexes[8].x & 0xffff];
 
 							u32 soli = atomicAdd(&eq->edata.srealcont.nsols, 1);
 #if 1
 							if (soli < MAXREALSOLS)
 							{
-								eq->edata.srealcont.sols[soli][0] = aBaseMap[indexes[0].x >> 16][indexes[0].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][1] = aBaseMap[indexes[0].y >> 16][indexes[0].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][2] = aBaseMap[indexes[1].x >> 16][indexes[1].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][3] = aBaseMap[indexes[1].y >> 16][indexes[1].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][4] = aBaseMap[indexes[2].x >> 16][indexes[2].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][5] = aBaseMap[indexes[2].y >> 16][indexes[2].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][6] = aBaseMap[indexes[3].x >> 16][indexes[3].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][7] = aBaseMap[indexes[3].y >> 16][indexes[3].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][8] = aBaseMap[indexes[4].x >> 16][indexes[4].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][9] = aBaseMap[indexes[4].y >> 16][indexes[4].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][10] = aBaseMap[indexes[5].x >> 16][indexes[5].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][11] = aBaseMap[indexes[5].y >> 16][indexes[5].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][12] = aBaseMap[indexes[6].x >> 16][indexes[6].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][13] = aBaseMap[indexes[6].y >> 16][indexes[6].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][14] = aBaseMap[indexes[7].x >> 16][indexes[7].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][15] = aBaseMap[indexes[7].y >> 16][indexes[7].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][16] = aBaseMap[indexes[8].x >> 16][indexes[8].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][17] = aBaseMap[indexes[8].y >> 16][indexes[8].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][18] = aBaseMap[indexes[9].x >> 16][indexes[9].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][19] = aBaseMap[indexes[9].y >> 16][indexes[9].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][20] = aBaseMap[indexes[10].x >> 16][indexes[10].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][21] = aBaseMap[indexes[10].y >> 16][indexes[10].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][22] = aBaseMap[indexes[11].x >> 16][indexes[11].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][23] = aBaseMap[indexes[11].y >> 16][indexes[11].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][24] = aBaseMap[indexes[12].x >> 16][indexes[12].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][25] = aBaseMap[indexes[12].y >> 16][indexes[12].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][26] = aBaseMap[indexes[13].x >> 16][indexes[13].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][27] = aBaseMap[indexes[13].y >> 16][indexes[13].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][28] = aBaseMap[indexes[14].x >> 16][indexes[14].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][29] = aBaseMap[indexes[14].y >> 16][indexes[14].y & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][30] = aBaseMap[indexes[15].x >> 16][indexes[15].x & Equihash::SlotsMask];
-								eq->edata.srealcont.sols[soli][31] = aBaseMap[indexes[15].y >> 16][indexes[15].y & Equihash::SlotsMask];
+								eq->edata.srealcont.sols[soli][0] = aBaseMap[indexes[0].x >> 16][indexes[0].x & 0xffff];
+								eq->edata.srealcont.sols[soli][1] = aBaseMap[indexes[0].y >> 16][indexes[0].y & 0xffff];
+								eq->edata.srealcont.sols[soli][2] = aBaseMap[indexes[1].x >> 16][indexes[1].x & 0xffff];
+								eq->edata.srealcont.sols[soli][3] = aBaseMap[indexes[1].y >> 16][indexes[1].y & 0xffff];
+								eq->edata.srealcont.sols[soli][4] = aBaseMap[indexes[2].x >> 16][indexes[2].x & 0xffff];
+								eq->edata.srealcont.sols[soli][5] = aBaseMap[indexes[2].y >> 16][indexes[2].y & 0xffff];
+								eq->edata.srealcont.sols[soli][6] = aBaseMap[indexes[3].x >> 16][indexes[3].x & 0xffff];
+								eq->edata.srealcont.sols[soli][7] = aBaseMap[indexes[3].y >> 16][indexes[3].y & 0xffff];
+								eq->edata.srealcont.sols[soli][8] = aBaseMap[indexes[4].x >> 16][indexes[4].x & 0xffff];
+								eq->edata.srealcont.sols[soli][9] = aBaseMap[indexes[4].y >> 16][indexes[4].y & 0xffff];
+								eq->edata.srealcont.sols[soli][10] = aBaseMap[indexes[5].x >> 16][indexes[5].x & 0xffff];
+								eq->edata.srealcont.sols[soli][11] = aBaseMap[indexes[5].y >> 16][indexes[5].y & 0xffff];
+								eq->edata.srealcont.sols[soli][12] = aBaseMap[indexes[6].x >> 16][indexes[6].x & 0xffff];
+								eq->edata.srealcont.sols[soli][13] = aBaseMap[indexes[6].y >> 16][indexes[6].y & 0xffff];
+								eq->edata.srealcont.sols[soli][14] = aBaseMap[indexes[7].x >> 16][indexes[7].x & 0xffff];
+								eq->edata.srealcont.sols[soli][15] = aBaseMap[indexes[7].y >> 16][indexes[7].y & 0xffff];
+								eq->edata.srealcont.sols[soli][16] = aBaseMap[indexes[8].x >> 16][indexes[8].x & 0xffff];
+								eq->edata.srealcont.sols[soli][17] = aBaseMap[indexes[8].y >> 16][indexes[8].y & 0xffff];
+								eq->edata.srealcont.sols[soli][18] = aBaseMap[indexes[9].x >> 16][indexes[9].x & 0xffff];
+								eq->edata.srealcont.sols[soli][19] = aBaseMap[indexes[9].y >> 16][indexes[9].y & 0xffff];
+								eq->edata.srealcont.sols[soli][20] = aBaseMap[indexes[10].x >> 16][indexes[10].x & 0xffff];
+								eq->edata.srealcont.sols[soli][21] = aBaseMap[indexes[10].y >> 16][indexes[10].y & 0xffff];
+								eq->edata.srealcont.sols[soli][22] = aBaseMap[indexes[11].x >> 16][indexes[11].x & 0xffff];
+								eq->edata.srealcont.sols[soli][23] = aBaseMap[indexes[11].y >> 16][indexes[11].y & 0xffff];
+								eq->edata.srealcont.sols[soli][24] = aBaseMap[indexes[12].x >> 16][indexes[12].x & 0xffff];
+								eq->edata.srealcont.sols[soli][25] = aBaseMap[indexes[12].y >> 16][indexes[12].y & 0xffff];
+								eq->edata.srealcont.sols[soli][26] = aBaseMap[indexes[13].x >> 16][indexes[13].x & 0xffff];
+								eq->edata.srealcont.sols[soli][27] = aBaseMap[indexes[13].y >> 16][indexes[13].y & 0xffff];
+								eq->edata.srealcont.sols[soli][28] = aBaseMap[indexes[14].x >> 16][indexes[14].x & 0xffff];
+								eq->edata.srealcont.sols[soli][29] = aBaseMap[indexes[14].y >> 16][indexes[14].y & 0xffff];
+								eq->edata.srealcont.sols[soli][30] = aBaseMap[indexes[15].x >> 16][indexes[15].x & 0xffff];
+								eq->edata.srealcont.sols[soli][31] = aBaseMap[indexes[15].y >> 16][indexes[15].y & 0xffff];
 							}
 #endif
 						}
@@ -1288,7 +1288,7 @@ __host__ void CudaSolver::Test(blake2b_state &aState, Listener &aListener)
 		if (duped(_solutions->sols[s])) {
 			continue;
 		}
-#if 0
+#if 1
 		// perform sort of pairs
 		for (uint32_t level = 0; level < WK; level++) {
 			for (uint32_t i = 0; i < (1 << WK); i += (2 << level)) {
