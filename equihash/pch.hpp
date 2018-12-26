@@ -15,13 +15,14 @@
 
 #include <WinSock2.h>
 #include <windows.h>
-#include <WinInet.h>	
+#include <WinInet.h>
 #include <shlobj.h>
 #include <tchar.h>
 #else
 typedef unsigned int DWORD;
 typedef unsigned long ULONG;
 #define	STDMETHODCALLTYPE
+#define	INFINITE -1
 #endif
 
 #include <stdio.h>

@@ -17,6 +17,7 @@ set(SOURCES
     Solver.hpp
     EquihashFarm.cpp
     EquihashFarm.hpp
+    blake2/blake2bx.cpp
 )
 
 set(CUDA_LIB_PATH ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs/)
@@ -24,7 +25,7 @@ set(CUDA_LIB_PATH ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs/)
 add_executable(beam-equihash ${SOURCES})
 
 target_include_directories(beam-equihash PRIVATE .. ../beam)
-target_link_libraries(beam-equihash PRIVATE base core beam Threads::Threads)
+target_link_libraries(beam-equihash PRIVATE base core beam Threads::Threads OpenSSL::SSL)
 
 if (EQUIHASHCL)
     target_link_libraries(beam-equihash PRIVATE equihash-cl)

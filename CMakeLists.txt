@@ -14,7 +14,7 @@ if(EXISTS ${module_dir})
     list(APPEND CMAKE_MODULE_PATH ${module_dir})
 endif()
 
-option(EQUIHASHCL "Build with OpenCL mining" ON)
+option(EQUIHASHCL "Build with OpenCL mining" OFF)
 option(EQUIHASHCUDA "Build with CUDA mining" ON)
 option(BINKERN "Install AMD binary kernels" OFF)
 
@@ -35,6 +35,14 @@ endfunction()
 configureProject()
 
 find_package(Threads REQUIRED)
+
+find_package(OpenSSL REQUIRED)
+
+message("OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
+message("OpenSSL libraries: ${OPENSSL_LIBRARIES}")
+
+include_directories(${OPENSSL_INCLUDE_DIR})
+list(APPEND LIB_LIST ${OPENSSL_LIBRARIES})
 
 message("------------------------------------------------------------------------")
 message("-- CMake ${CMAKE_VERSION}")
@@ -73,8 +81,8 @@ if (EQUIHASHCUDA)
     add_subdirectory(equihash/cuda)
 endif ()
 
+add_subdirectory(beam)
 add_subdirectory(base)
 add_subdirectory(core)
-add_subdirectory(beam)
 
 add_subdirectory(equihash)

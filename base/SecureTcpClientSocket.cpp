@@ -38,7 +38,7 @@ SecureTcpClientSocket::~SecureTcpClientSocket()
 
 bool SecureTcpClientSocket::Connect(const char *aHost, uint16_t aPort, DWORD aRecvTimeout, DWORD aSendTimeout)
 {
-	if (__super::Connect(aHost, aPort, aRecvTimeout, aSendTimeout)) {
+	if (TcpClientSocket::Connect(aHost, aPort, aRecvTimeout, aSendTimeout)) {
 		if (_sslCtx) {
 			_ssl = SSL_new(_sslCtx);
 			if (nullptr != _ssl) {

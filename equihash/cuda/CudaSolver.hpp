@@ -7,6 +7,10 @@
 #include "../blake2/blake2.h"
 #include "../Solver.hpp"
 
+#if !defined(_WIN32) && !defined(WIN32)
+#define	_snprintf snprintf
+#endif
+
 #define ThrowIfCudaErrors(call)					\
 do {											\
 	cudaError_t err = call;						\

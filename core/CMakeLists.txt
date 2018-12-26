@@ -29,7 +29,7 @@ set(SOURCES
     Service.hpp
 )
 
-if (ETHASHCL)
+if (EQUIHASHCL)
     set(SOURCES
         ${SOURCES}
         ClMiner.cpp
@@ -37,7 +37,7 @@ if (ETHASHCL)
     )
 endif()
 
-if (ETHASHCUDA)
+if (EQUIHASHCUDA)
     set(SOURCES
         ${SOURCES}
         CudaMiner.cpp

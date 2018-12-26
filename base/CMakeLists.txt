@@ -42,7 +42,7 @@ set(SOURCES
     TcpServerSocket.hpp
 )
 
-if (ETHASHCL)
+if (EQUIHASHCL)
     set(SOURCES
         ${SOURCES}
         AdlInfoProvider.cpp
@@ -52,7 +52,7 @@ if (ETHASHCL)
     )
 endif()
 
-if (ETHASHCUDA)
+if (EQUIHASHCUDA)
     set(SOURCES
         ${SOURCES}
         NvidiaInfoProvider.cpp
@@ -61,6 +61,6 @@ if (ETHASHCUDA)
 endif()
 
 add_library(base STATIC ${SOURCES})
-target_link_libraries(base PRIVATE Threads::Threads)
+target_link_libraries(base PRIVATE Threads::Threads OpenSSL::SSL)
 target_include_directories(base PRIVATE ..)
 

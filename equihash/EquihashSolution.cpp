@@ -183,7 +183,7 @@ EquihashSolution::EquihashSolution(
 		return;
 	}
 	cp += 32;
-	ZeroMemory(cp, 32);
+	memset(cp, 0, 32);
 	cp += 32;
 	*reinterpret_cast<uint32_t*>(cp) = aTime;
 	cp += 4;

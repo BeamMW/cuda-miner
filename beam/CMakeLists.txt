@@ -10,5 +10,5 @@ set(SOURCES
 
 add_library(beam STATIC ${SOURCES})
 target_link_libraries(beam PRIVATE Threads::Threads)
-target_include_directories(beam PRIVATE ..)
+target_include_directories(beam PRIVATE . ..)
 

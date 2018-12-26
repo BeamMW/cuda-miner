@@ -42,5 +42,5 @@ set(SOURCES
 
 cuda_add_library(equihash-cuda STATIC ${SOURCES})
 target_include_directories(equihash-cuda PUBLIC ${CUDA_INCLUDE_DIRS})
-target_include_directories(equihash-cuda PRIVATE .. ../.. ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(equihash-cuda ${CUDA_LIBRARIES})
+target_include_directories(equihash-cuda PRIVATE .. ../.. ../../beam ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(equihash-cuda ${CUDA_LIBRARIES} beam core)

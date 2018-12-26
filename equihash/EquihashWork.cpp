@@ -117,7 +117,7 @@ EquihashWork::EquihashWork(
 		return;
 	}
 	cp += 32;
-	ZeroMemory(cp, 32);
+	memset(cp, 0, 32);
 	cp += 32;
 	*reinterpret_cast<uint32_t*>(cp) = aTime;
 	cp += 4;
@@ -126,7 +126,7 @@ EquihashWork::EquihashWork(
 	}
 	cp += 4;
 	if (aNonce.empty()) {
-		ZeroMemory(cp, 32);
+		memset(cp, 0, 32);
 	}
 	else {
 		if (32 != HexToBin(aNonce, cp, 32)) {
@@ -137,6 +137,7 @@ EquihashWork::EquihashWork(
 
 double EquihashWork::GetNetworkDiff() const
 {
+#if 0
 	//KMD bits: "1e 015971",
 	//KMD target: "00 00 015971000000000000000000000000000000000000000000000000000000",
 	//KMD bits: "1d 686aaf",
@@ -151,6 +152,8 @@ double EquihashWork::GetNetworkDiff() const
 		net_target[31 - b] = ((uint8_t*)&tgt64)[b];
 	}
 	return TargetToDiff((uint32_t*)net_target);
+#endif
+	return 0;
 }
 
 unsigned char * EquihashWork::GetNonce()

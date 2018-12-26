@@ -1,6 +1,13 @@
 #include "pch.hpp"
 #include "Utils.hpp"
 
+#ifdef WIN32
+#    pragma comment (lib, "Bcrypt.lib")
+#else // WIN32
+#    include <unistd.h>
+#    include <fcntl.h>
+#endif // WIN32
+
 void GenRandom(void* pData, uint32_t nSize)
 {
 #ifdef _WIN32
@@ -12,7 +19,7 @@ void GenRandom(void* pData, uint32_t nSize)
 
 	int fp = open("/dev/urandom", O_RDONLY);
 	if (fp >= 0) {
-		if (read(hFile, pData, nSize) == nSize) {
+		if (read(fp, pData, nSize) == nSize) {
 			bRet = true;
 		}
 		close(fp);
