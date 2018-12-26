@@ -60,6 +60,7 @@ struct CudaSolver : public Solver
 	~CudaSolver() override;
 
 	void Solve(EquihashWork::Ref aWork, Listener &aListener) override;
+	void Solve(BeamWork::Ref aWork, Listener &aListener) override;
 	void Test(blake2b_state &aState, Listener &aListener);
 
 	const cudaDeviceProp & GetDeviceProperties() const { return _deviceProps; }

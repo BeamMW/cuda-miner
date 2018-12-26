@@ -26,6 +26,7 @@ public:
 	inline bool IsNumber() const { return jsonNumber == mType; }
 	inline bool GetBoolValue() const { return mValue == "true"; }
 	inline long GetLongValue() const { return std::stol(mValue); }
+	inline unsigned long GetULongValue() const { return std::stoul(mValue); }
 	inline double GetDoubleValue() const { return std::stod(mValue); }
 	inline const std::string & GetName() const { return mName; }
 	inline const std::string & GetValue() const { return mValue; }

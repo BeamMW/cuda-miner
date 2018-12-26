@@ -29,6 +29,7 @@ public:
 protected:
 	bool IsCancel(const core::Work &aWork) override;
 	void OnSolution(const EquihashWork &aWork, const std::vector<uint32_t>&, size_t) override;
+	void OnSolution(const BeamWork &aWork, const std::vector<uint32_t>&, size_t) override;
 	void OnHashDone() override;
 
 protected:

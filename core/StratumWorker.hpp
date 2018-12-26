@@ -28,6 +28,7 @@ namespace core
 			virtual bool OnResult(const JSonVar &aResult);
 			virtual void OnTimeout();
 			virtual bool HasResult() const;
+			virtual bool HasParams() const;
 			virtual void Serialize(std::string &aBuffer) const;
 
 		protected:
@@ -44,6 +45,8 @@ namespace core
 
 		Work::Ref GetWork() override;
 		void SetWork(Work::Ref aWork) override;
+		void CancelWork(const std::string &aId) override;
+		bool IsCurrentWork(const core::Work &aWork) const override;
 
 		bool Register(Call::Ref aMethod);
 		long CreateCallId();

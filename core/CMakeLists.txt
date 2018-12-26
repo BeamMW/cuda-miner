@@ -7,6 +7,8 @@ set(SOURCES
     Miner.hpp
     NullWorker.cpp
     NullWorker.hpp
+    SecureTcpTransport.cpp
+    SecureTcpTransport.hpp
     Solution.cpp
     Solution.hpp
     Statistics.cpp

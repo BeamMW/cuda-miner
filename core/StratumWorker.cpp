@@ -3,6 +3,7 @@
 #include "StratumWorker.hpp"
 #include "base/Logging.hpp"
 #include "core/TcpAsyncTransport.hpp"
+#include "core/SecureTcpTransport.hpp"
 
 using namespace core;
 
@@ -33,6 +34,11 @@ void StratumWorker::Call::OnTimeout()
 bool StratumWorker::Call::HasResult() const
 {
 	return false;
+}
+
+bool StratumWorker::Call::HasParams() const
+{
+	return true;
 }
 
 void StratumWorker::Call::Serialize(std::string &) const
@@ -138,7 +144,11 @@ void StratumWorker::Workflow()
 									}
 									else {
 										if (auto method = pt[kMethod]) {
+#if 0
 											OnCall(id->GetValue(), method->GetValue(), pt);
+#else
+											OnNotify(method->GetValue(), pt);
+#endif
 										}
 										else {
 											//
@@ -229,8 +239,13 @@ bool StratumWorker::OnNotify(const std::string &aName, const JSonVar &aCall)
 {
 	auto handler = _callHandlers.find(aName);
 	if (_callHandlers.end() != handler) {
-		if (auto params = aCall[kParams]) {
-			handler->second->OnCall(*params);
+		if (handler->second->HasParams()) {
+			if (auto params = aCall[kParams]) {
+				handler->second->OnCall(*params);
+			}
+		}
+		else {
+			handler->second->OnCall(aCall);
 		}
 		return true;
 	}
@@ -293,7 +308,11 @@ bool StratumWorker::OnDisconnected()
 
 bool StratumWorker::OnCreateTransport()
 {
+#if 0
 	_transport = new TcpAsyncTransport(_server, atoi(_port.c_str()));
+#else
+	_transport = new SecureTcpTransport(_server, atoi(_port.c_str()));
+#endif
 	return _transport;
 }
 
@@ -311,6 +330,19 @@ void StratumWorker::SetWork(Work::Ref aWork)
 {
 	_work = aWork;
 	_eventWork.Set();
+}
+
+void StratumWorker::CancelWork(const std::string &aId)
+{
+	if (_work && (_work->_id == aId)) {
+		_work.release();
+		_eventWork.Set();
+	}
+}
+
+bool StratumWorker::IsCurrentWork(const core::Work &aWork) const
+{
+	return _work && (_work->_id == aWork._id);
 }
 
 long StratumWorker::CreateCallId()

@@ -18,6 +18,8 @@ set(SOURCES
     Manageable.cpp
     Manageable.hpp
     Reference.hpp
+    SecureTcpClientSocket.cpp
+    SecureTcpClientSocket.hpp
     Semaphore.hpp
     SHA256.cpp
     SHA256.hpp
@@ -28,6 +30,8 @@ set(SOURCES
     tinyxml2.hpp
     url.cpp
     url.hpp
+    Utils.cpp
+    Utils.hpp
     WaitableTimer.hpp
     wraphelper.h
     TcpClientSocket.cpp

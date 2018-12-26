@@ -15,6 +15,12 @@
 #include "CudaSolver.hpp"
 #include "sm_32_intrinsics.h"
 
+#define	BEAM_WORK_MODE	1
+
+#if BEAM_WORK_MODE
+#include "blake2b.cuh"
+#endif
+
 struct Equihash
 {
 	const static u32 DigitsCount	= (WK + 1);
@@ -80,11 +86,15 @@ typedef uint2 (*Pairs)[Equihash::SlotsCount];
 
 struct equi
 {
+#if BEAM_WORK_MODE
+	blake2b_state blake_ctx;
+#else
 	union
 	{
 		u64 blake_h[8];
 		u32 blake_h32[16];
 	};
+#endif
 	struct
 	{
 		u32 nslots[5][Equihash::BucketsCount];
@@ -94,7 +104,7 @@ struct equi
 		u32 indexErrorK;
 	} edata;
 };
-
+#if !BEAM_WORK_MODE
 __device__ __constant__ const u64 blake_iv[] =
 {
 	0x6a09e667f3bcc908, 0xbb67ae8584caa73b,
@@ -155,10 +165,13 @@ __device__ __forceinline__ void G2(u64 & a, u64 & b, u64 & c, u64 & d, u64 x, u6
 	c = c + d;
 	((uint2*)&b)[0] = ROR2(((uint2*)&b)[0] ^ ((uint2*)&c)[0], 63U);
 }
-
+#endif
 __global__ void stage_init(equi *eq, BaseMap baseMap, Items xorOut)
 {
 	const u32 block = blockIdx.x * blockDim.x + threadIdx.x;
+#if BEAM_WORK_MODE
+	blake2b_state state;
+#else
 	__shared__ u64 hash_h[8];
 	u32* hash_h32 = (u32*)hash_h;
 
@@ -167,9 +180,14 @@ __global__ void stage_init(equi *eq, BaseMap baseMap, Items xorOut)
 	}
 
 	__syncthreads();
-
+#endif
 	if (block < Equihash::BlakesCount)
 	{
+#if BEAM_WORK_MODE
+		state = eq->blake_ctx;
+		blake2b_gpu_hash(&state, block);
+		u32 *v32 = (u32*)&state.h[0];
+#else
 		u64 m = (u64)block << 32;
 
 		union
@@ -324,6 +342,7 @@ __global__ void stage_init(equi *eq, BaseMap baseMap, Items xorOut)
 		v[5] ^= hash_h[5] ^ v[13];
 		v[6] ^= hash_h[6] ^ v[14];
 		v[7] ^= hash_h[7] ^ v[15];
+#endif
 		/*
 		blake	0	1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	16	17	18	19	20	21	22	23	24	25	26	27	28	29	30	31	32	33	34	35	36	37	38	39	40	41	42	43	44	45	46	47	48	49	50	51	52	53	54	55	56
 		words	0	0	0	0	1	1	1	1	2	2	2	2	3	3	3	3	4	4	4	4	5	5	5	5	6	6	6	6	7	7	7	7	8	8	8	8	9	9	9	9	10	10	10	10	11	11	11	11	12	12	12	12	13	13	13	13	14
@@ -477,7 +496,10 @@ __global__ void stage_1(equi *eq, Items aInXor, Items4 aOutXor, Pairs aPairs)
 				for (u32 k = 0; k < j; k++) {
 					u32 ik = ht[htIndex][k];
 
-					xors = ta ^ cache[ik];
+					xors.x = ta.x ^ cache[ik].x;
+					xors.y = ta.y ^ cache[ik].y;
+					xors.z = ta.z ^ cache[ik].z;
+					xors.w = ta.w ^ cache[ik].w;
 
 					asm("bfe.u32 %0, %1, 15, 16;" : "=r"(xorbucketid) : "r"(xors.x));
 					xorslot = atomicAdd(&eq->edata.nslots[1][xorbucketid], 1);
@@ -552,7 +574,10 @@ __global__ void stage_2(equi *eq, const Items4 aInXor, Items3 aOutXor, Pairs aPa
 				for (u32 k = 0; k < j; k++) {
 					u32 ik = ht[htIndex][k];
 
-					xors = ta ^ cache[ik];
+					xors.x = ta.x ^ cache[ik].x;
+					xors.y = ta.y ^ cache[ik].y;
+					xors.z = ta.z ^ cache[ik].z;
+					xors.w = ta.w ^ cache[ik].w;
 
 					xorbucketid = __byte_perm(xors.x, xors.y, 0x0765);
 					asm("bfe.u32 %0, %1, 14, 16;" : "=r"(xorbucketid) : "r"(xorbucketid));
@@ -632,7 +657,10 @@ __global__ void stage_3(equi *eq, const Items3 aInXor, Items2 aOutXor, Pairs aPa
 				for (u32 k = 0; k < j; k++) {
 					u32 ik = ht[htIndex][k];
 
-					xors = ta ^ cache[ik];
+					xors.x = ta.x ^ cache[ik].x;
+					xors.y = ta.y ^ cache[ik].y;
+					xors.z = ta.z ^ cache[ik].z;
+					xors.w = ta.w ^ cache[ik].w;
 
 					xorbucketid = __byte_perm(xors.y, xors.z, 0x1076);
 					asm("bfe.u32 %0, %1, 13, 16;" : "=r"(xorbucketid) : "r"(xorbucketid));
@@ -1044,7 +1072,7 @@ __host__ CudaSolver::CudaSolver(const std::string &aId, int aDeviceId)
 	_memory.units[12] = _memory.units[11] + Equihash::MemoryUnitSize32;
 }
 
-#define	DO_METRICS	1
+#define	DO_METRICS	0
 
 __host__ void CudaSolver::Solve(EquihashWork::Ref aWork, Listener &aListener)
 {
@@ -1070,8 +1098,11 @@ __host__ void CudaSolver::Solve(EquihashWork::Ref aWork, Listener &aListener)
 #if DO_METRICS
 	uint64_t cycleSetHeader = __rdtsc();
 #endif
-
+#if BEAM_WORK_MODE
+	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_ctx, &blake_ctx, sizeof(blake_ctx), cudaMemcpyHostToDevice));
+#else
 	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_h, &blake_ctx.h, sizeof(u64) * 8, cudaMemcpyHostToDevice));
+#endif
 #if DO_METRICS
 	cudaDeviceSynchronize();
 	uint64_t cycleCopyBlake = __rdtsc();
@@ -1174,6 +1205,170 @@ __host__ void CudaSolver::Solve(EquihashWork::Ref aWork, Listener &aListener)
 
 	aListener.OnHashDone();
 }
+
+__host__ void setBeamHader(blake2b_state &aState, const unsigned char *aData, unsigned aDataSize, const unsigned char *aNonce, unsigned aNonceSize)
+{
+	uint32_t le_N = 150;
+	uint32_t le_K = 5;
+
+	unsigned char personalization[BLAKE2B_PERSONALBYTES] = {};
+	memcpy(personalization, "Beam-PoW", 8);
+	memcpy(personalization + 8, &le_N, 4);
+	memcpy(personalization + 12, &le_K, 4);
+
+	const uint8_t outlen = (512 / 150) * ((150 + 7) / 8);
+
+	static_assert(!((!outlen) || (outlen > BLAKE2B_OUTBYTES)), "!((!outlen) || (outlen > BLAKE2B_OUTBYTES))");
+
+	blake2b_param param = { 0 };
+	param.digest_length = outlen;
+	param.fanout = 1;
+	param.depth = 1;
+
+	memcpy(&param.personal, personalization, BLAKE2B_PERSONALBYTES);
+
+	blake2b_init_param(&aState, &param);
+	blake2b_update(&aState, aData, aDataSize);
+	blake2b_update(&aState, aNonce, aNonceSize);
+}
+
+__host__ void CudaSolver::Solve(BeamWork::Ref aWork, Listener &aListener)
+{
+	blake2b_state state;
+#if DO_METRICS
+	LOG(Info) << "Equihash:";
+	LOG(Info) << "\titems count        = " << Equihash::ItemsCount;
+	LOG(Info) << "\tbucket bits        = " << Equihash::BucketBits;
+	LOG(Info) << "\tbuckets count      = " << Equihash::BucketsCount;
+	LOG(Info) << "\trest bits          = " << Equihash::RestBits;
+	LOG(Info) << "\trests count        = " << Equihash::RestsCount;
+	LOG(Info) << "\tslots count        = " << Equihash::SlotsCount;
+	LOG(Info) << "\tmemory unit        = " << (Equihash::MemoryUnitSize32 / (1024 * 1024)) << "M u32 items";
+	LOG(Info) << "\tunit size          = " << ((sizeof(u32)*Equihash::MemoryUnitSize32) / (1024 * 1024)) << "M";
+
+	std::chrono::time_point<std::chrono::system_clock>	_start = std::chrono::system_clock::now();
+	uint64_t cycleStart = __rdtsc();
+#endif
+	setBeamHader(state, aWork->GetData(), aWork->GetDataSize(), aWork->GetNonce(), aWork->GetNonceSize());
+#if DO_METRICS
+	uint64_t cycleSetHeader = __rdtsc();
+#endif
+#if BEAM_WORK_MODE
+	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_ctx, &state, sizeof(blake2b_state), cudaMemcpyHostToDevice));
+#else
+	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_h, &aState.h, sizeof(u64) * 8, cudaMemcpyHostToDevice));
+#endif
+#if DO_METRICS
+	cudaDeviceSynchronize();
+	uint64_t cycleCopyBlake = __rdtsc();
+#endif
+	ThrowIfCudaErrors(cudaMemset(&_deviceEq->edata, 0, sizeof(_deviceEq->edata)));
+#if DO_METRICS
+	ThrowIfCudaErrors(cudaDeviceSynchronize());
+	uint64_t cycleMemset = __rdtsc();
+#endif
+	stage_init << <(Equihash::BlakesCount + 255) / 256, 256 >> >(_deviceEq, (BaseMap)(_memory.baseMap), (Items)_memory.units[2]);
+#if DO_METRICS
+	ThrowIfCudaErrors(cudaDeviceSynchronize());
+	uint64_t cycleDigit_0 = __rdtsc();
+#endif
+	stage_1<SSM> << < Equihash::BucketsCount, 256 >> >(_deviceEq, (Items)_memory.units[2], (Items4)_memory.units[9], (Pairs)_memory.units[0]);
+#if DO_METRICS
+	ThrowIfCudaErrors(cudaDeviceSynchronize());
+	uint64_t cycleDigit_1 = __rdtsc();
+#endif
+	stage_2<SSM> << < Equihash::BucketsCount, 256 >> >(_deviceEq, (Items4)_memory.units[9], (Items3)_memory.units[6], (Pairs)_memory.units[2]);
+#if DO_METRICS
+	ThrowIfCudaErrors(cudaDeviceSynchronize());
+	uint64_t cycleDigit_2 = __rdtsc();
+#endif
+	stage_3<SSM> << < Equihash::BucketsCount, 256 >> >(_deviceEq, (Items3)_memory.units[6], (Items2)_memory.units[9], (Pairs)_memory.units[4]);
+#if DO_METRICS
+	ThrowIfCudaErrors(cudaDeviceSynchronize());
+	uint64_t cycleDigit_3 = __rdtsc();
+#endif
+	stage_4<SSM> << < Equihash::BucketsCount, 256 >> >(_deviceEq, (Items2)_memory.units[9], (Items2)_memory.units[11], (Pairs)_memory.units[6]);
+#if DO_METRICS
+	ThrowIfCudaErrors(cudaDeviceSynchronize());
+	uint64_t cycleDigit_4 = __rdtsc();
+#endif
+	stage_last<SSM> << < Equihash::BucketsCount, 256 >> >(_deviceEq, (BaseMap)(_memory.baseMap), (uint2*)(_memory.units[0]), (Items2)_memory.units[11]);
+#if DO_METRICS
+	ThrowIfCudaErrors(cudaDeviceSynchronize());
+	uint64_t cycleDigit_5 = __rdtsc();
+#endif
+#if DEEP_CUDA_DEBUG
+	ThrowIfCudaErrors(cudaMemcpy(_hostEq, _deviceEq, sizeof(equi), cudaMemcpyDeviceToHost));
+	u32 m[4] = { 0, 0, 0, 0 };
+	for (u32 i = 0; i < Equihash::BucketsCount; i++) {
+		if (_hostEq->edata.nslots[0][i] > m[0]) {
+			m[0] = _hostEq->edata.nslots[0][i];
+		}
+		if (_hostEq->edata.nslots[1][i] > m[1]) {
+			m[1] = _hostEq->edata.nslots[1][i];
+		}
+		if (_hostEq->edata.nslots[2][i] > m[2]) {
+			m[2] = _hostEq->edata.nslots[2][i];
+		}
+		if (_hostEq->edata.nslots[3][i] > m[3]) {
+			m[3] = _hostEq->edata.nslots[3][i];
+		}
+	}
+	scontainerreal *_solutions = &_hostEq->edata.srealcont;
+#else
+	ThrowIfCudaErrors(cudaMemcpy(_solutions, &_deviceEq->edata.srealcont, sizeof(scontainerreal), cudaMemcpyDeviceToHost));
+#endif
+#if DO_METRICS
+	ThrowIfCudaErrors(cudaDeviceSynchronize());
+	uint64_t cycleCopySol = __rdtsc();
+
+	double cycleTotal = cycleCopySol - cycleStart;
+
+	LOG(Info) << "cycleSetHeader = " << (cycleSetHeader - cycleStart) << " (" << ((cycleSetHeader - cycleStart) / cycleTotal) << ")";
+	LOG(Info) << "cycleCopyBlake = " << (cycleCopyBlake - cycleSetHeader) << " (" << ((cycleCopyBlake - cycleSetHeader) / cycleTotal) << ")";
+	LOG(Info) << "cycleMemset = " << (cycleMemset - cycleCopyBlake) << " (" << ((cycleMemset - cycleCopyBlake) / cycleTotal) << ")";
+	LOG(Info) << "cycleDigit_0 = " << (cycleDigit_0 - cycleMemset) << " (" << ((cycleDigit_0 - cycleMemset) / cycleTotal) << ")";
+	LOG(Info) << "cycleDigit_1 = " << (cycleDigit_1 - cycleDigit_0) << " (" << ((cycleDigit_1 - cycleDigit_0) / cycleTotal) << ")";
+	LOG(Info) << "cycleDigit_2 = " << (cycleDigit_2 - cycleDigit_1) << " (" << ((cycleDigit_2 - cycleDigit_1) / cycleTotal) << ")";
+	LOG(Info) << "cycleDigit_3 = " << (cycleDigit_3 - cycleDigit_2) << " (" << ((cycleDigit_3 - cycleDigit_2) / cycleTotal) << ")";
+	LOG(Info) << "cycleDigit_4 = " << (cycleDigit_4 - cycleDigit_3) << " (" << ((cycleDigit_4 - cycleDigit_3) / cycleTotal) << ")";
+	LOG(Info) << "cycleDigit_5 = " << (cycleDigit_5 - cycleDigit_4) << " (" << ((cycleDigit_5 - cycleDigit_4) / cycleTotal) << ")";
+	LOG(Info) << "cycleCopySol = " << (cycleCopySol - cycleDigit_5) << " (" << ((cycleCopySol - cycleDigit_5) / cycleTotal) << ")";
+	LOG(Info) << "cycleTotal = " << (uint64_t)cycleTotal;
+	LOG(Info) << "time = " << (unsigned)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - _start).count() << " ms";
+
+	LOG(Info) << "Solutions count: " << _solutions->nsols;
+#endif
+	if (_solutions->nsols > MAXREALSOLS) {
+		LOG(Info) << "Missing sols: " << (_solutions->nsols - MAXREALSOLS);
+	}
+
+	for (u32 s = 0; (s < _solutions->nsols) && (s < MAXREALSOLS); s++)
+	{
+		// remove dups on CPU (dup removal on GPU is not fully exact and can pass on some invalid _solutions)
+		if (duped(_solutions->sols[s])) {
+			continue;
+		}
+#if 1
+		// perform sort of pairs
+		for (uint32_t level = 0; level < WK; level++) {
+			for (uint32_t i = 0; i < (1 << WK); i += (2 << level)) {
+				sort_pair(&_solutions->sols[s][i], 1 << level);
+			}
+		}
+#endif
+		std::vector<uint32_t> index_vector(PROOFSIZE);
+		for (u32 i = 0; i < PROOFSIZE; i++) {
+			index_vector[i] = _solutions->sols[s][i];
+		}
+#if DO_METRICS
+		LOG(Info) << "Test solution #" << s << "/" << _solutions->nsols;
+#endif
+		aListener.OnSolution(*aWork, index_vector, Equihash::DigitBits);
+	}
+
+	aListener.OnHashDone();
+}
 #if DEEP_CUDA_DEBUG
 //=================================================================================================
 
@@ -1200,8 +1395,11 @@ __host__ void CudaSolver::Test(blake2b_state &aState, Listener &aListener)
 #if DO_METRICS
 	uint64_t cycleSetHeader = __rdtsc();
 #endif
-
+#if BEAM_WORK_MODE
+	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_ctx, &aState, sizeof(blake2b_state), cudaMemcpyHostToDevice));
+#else
 	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_h, &aState.h, sizeof(u64) * 8, cudaMemcpyHostToDevice));
+#endif
 #if DO_METRICS
 	cudaDeviceSynchronize();
 	uint64_t cycleCopyBlake = __rdtsc();

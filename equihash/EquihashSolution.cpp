@@ -6,7 +6,9 @@
 #include "base/SHA256.hpp"
 #include "base/StringUtils.hpp"
 #include "EquihashSolution.hpp"
+#if 0
 #include "EquihashSolver.hpp"
+#endif
 
 #undef max
 
@@ -127,6 +129,7 @@ bool EquihashSolution::CheckSolution(const std::vector<uint32_t> &aIndexVector, 
 
 bool EquihashSolution::ProofOfWork()
 {
+#if 0
 	EquihashSolver eq(1);
 	eq.setnonce((char*)_header, 140, nullptr, 0);
 	eq.digit0(0);
@@ -151,7 +154,7 @@ bool EquihashSolution::ProofOfWork()
 			return true;
 		}
 	}
-
+#endif
 	return false;
 }
 

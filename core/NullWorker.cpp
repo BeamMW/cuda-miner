@@ -22,6 +22,10 @@ void NullWorker::SetWork(Work::Ref)
 {
 }
 
+void NullWorker::CancelWork(const std::string &)
+{
+}
+
 void NullWorker::PostSolution(core::Solution::Ref) const
 {
 }

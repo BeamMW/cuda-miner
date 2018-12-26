@@ -3,6 +3,7 @@
 #include "base/Logging.hpp"
 #include "EquihashCudaMiner.hpp"
 #include "../EquihashSolution.hpp"
+#include "../BeamSolution.hpp"
 
 #if USE_CUDA
 EquihashCudaMiner::EquihashCudaMiner(const core::Worker &aWorker, core::CudaMiner::CudaDevice::Ref aCudaDevice)
@@ -27,7 +28,11 @@ bool EquihashCudaMiner::Init()
 unsigned EquihashCudaMiner::Search(const core::Work &aWork)
 {
 	try {
+#if 0
 		_solver->Solve(static_cast<const EquihashWork&>(aWork), *this);
+#else
+		_solver->Solve(static_cast<const BeamWork&>(aWork), *this);
+#endif
 	}
 	catch (const std::exception &) {
 	}
@@ -37,7 +42,11 @@ unsigned EquihashCudaMiner::Search(const core::Work &aWork)
 void EquihashCudaMiner::Search(const core::Work &aWork, Solver::Listener &aListener)
 {
 	try {
+#if 0
 		_solver->Solve(static_cast<const EquihashWork&>(aWork), aListener);
+#else
+		_solver->Solve(static_cast<const BeamWork&>(aWork), aListener);
+#endif
 	}
 	catch (const std::exception &) {
 	}
@@ -64,6 +73,21 @@ void EquihashCudaMiner::OnSolution(const EquihashWork &aWork, const std::vector<
 		solution->Add(aIndexVector, aCbitlen);
 		if (solution->GetHash() < _worker.GetTarget()) {
 			_worker.PostSolution(*solution);
+		}
+	}
+}
+
+void EquihashCudaMiner::OnSolution(const BeamWork &aWork, const std::vector<uint32_t> &aIndexVector, size_t aCbitlen)
+{
+	_statistics.solutions.inc();
+	if (BeamSolution::Ref solution = new BeamSolution(GetId(), aWork, &_statistics)) {
+		solution->Add(aIndexVector, aCbitlen);
+		beam::uintBig_t<32> hv;
+		memcpy(hv.m_pData, solution->GetHash().GetBytes(), 32);
+		if (aWork._powDiff.IsTargetReached(hv)) {
+			if (_worker.IsCurrentWork(aWork)) {
+				_worker.PostSolution(*solution);
+			}
 		}
 	}
 }

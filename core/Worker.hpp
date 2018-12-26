@@ -20,6 +20,8 @@ namespace core
 
 		virtual Work::Ref GetWork() = 0;
 		virtual void SetWork(Work::Ref aWork) = 0;
+		virtual void CancelWork(const std::string &aId) = 0;
+		virtual bool IsCurrentWork(const core::Work &aWork) const = 0;
 
 		virtual const std::string & GetServer() const;
 		virtual void SetServer(const std::string &aServer);
