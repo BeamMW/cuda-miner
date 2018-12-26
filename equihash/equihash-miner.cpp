@@ -296,8 +296,12 @@ int main(int argc, char **argv)
 	doTest();
 	return 0;
 #endif
+#ifdef _WIN32
 	SetConsoleCtrlHandler((PHANDLER_ROUTINE)CtrlHandler, TRUE);
-
+#else
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+#endif
 	if (farm.Init(argc, argv)) {
 		farm.Run();
 	}
