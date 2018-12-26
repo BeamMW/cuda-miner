@@ -26,7 +26,6 @@ class PrintStatisticsTask : public core::Service::ITask
 public:
 	PrintStatisticsTask(const EquihashFarm &aFarm) : _farm(aFarm)
 	{
-		HRESULT err = S_OK;
 //		_timer.SetPeriod(30000, 30000);
 		_timer.SetPeriod(10000, 10000);
 	}
@@ -171,7 +170,7 @@ ASyncLogWritter::Ref ASyncLogWritter::sInstance;
 
 bool EquihashFarm::Init(int argc, char **argv)
 {
-	if (!__super::Init(argc, argv)) {
+	if (!Farm::Init(argc, argv)) {
 		return false;
 	}
 
