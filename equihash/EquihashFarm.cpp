@@ -14,11 +14,11 @@
 #endif
 #include <iomanip>
 
-#define MINERALL_EQUIHASH_VERSION "1.0.0.61"
+#define BEAM_EQUIHASH_VERSION "1.0.0.61"
 
 static void PrintVersion()
 {
-	printf("minerall-equihash version " MINERALL_EQUIHASH_VERSION "\n");
+	printf("beam-equihash version " BEAM_EQUIHASH_VERSION "\n");
 }
 
 class PrintStatisticsTask : public core::Service::ITask
@@ -603,7 +603,7 @@ void EquihashFarm::BuildStatistics(std::string &aMsg)
 	aMsg += "\"uptime\":";
 	aMsg += std::to_string(time(nullptr) - _started);
 	aMsg += ",";
-	aMsg += "\"ver\":\"" MINERALL_EQUIHASH_VERSION "\",";
+	aMsg += "\"ver\":\"" BEAM_EQUIHASH_VERSION "\",";
 	aMsg += "\"algo\":\"ethash\",";
 	aMsg += "\"hs_total\":";
 	aMsg += std::to_string(total.hashRateNow / 1000);
