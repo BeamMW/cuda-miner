@@ -36,7 +36,7 @@ configureProject()
 
 find_package(Threads REQUIRED)
 
-find_package(OpenSSL REQUIRED)
+find_package(OpenSSL REQUIRED FLAGS STATIC)
 
 message("OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
 message("OpenSSL libraries: ${OPENSSL_LIBRARIES}")
