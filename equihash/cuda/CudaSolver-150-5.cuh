@@ -186,9 +186,29 @@ __global__ void stage_init(equi *eq, BaseMap baseMap, Items xorOut)
 	if (block < Equihash::BlakesCount)
 	{
 #if BEAM_WORK_MODE
+#if 0
 		state = eq->blake_ctx;
 		blake2b_gpu_hash(&state, block);
 		u32 *v32 = (u32*)&state.h[0];
+#else
+		u32 hash[16];
+		hash[0]  = hash[1]  = hash[2]  = hash[3]  = 0;
+		hash[4]  = hash[5]  = hash[6]  = hash[7]  = 0;
+		hash[8]  = hash[9]  = hash[10] = hash[11] = 0;
+		hash[12] = hash[13] = hash[14] = hash[15] = 0;
+
+		u32 startIndex = block & 0xFFFFFFF0;
+
+		for (u32 g2 = startIndex; g2 <= block; g2++) {
+			state = eq->blake_ctx;
+			blake2b_gpu_hash(&state, g2);
+			for (u32 idx = 0; idx < 16; idx++) {
+				hash[idx] += ((u32*)&state.h[0])[idx];
+			}
+		}
+
+		u32 *v32 = hash;
+#endif
 #else
 		u64 m = (u64)block << 32;
 
@@ -1177,10 +1197,11 @@ __host__ void CudaSolver::Solve(EquihashWork::Ref aWork, Listener &aListener)
 
 	LOG(Info) << "Solutions count: " << _solutions->nsols;
 #endif
+#if DO_METRICS
 	if (_solutions->nsols > MAXREALSOLS) {
 		LOG(Info) << "Missing sols: " << (_solutions->nsols - MAXREALSOLS);
 	}
-
+#endif
 	for (u32 s = 0; (s < _solutions->nsols) && (s < MAXREALSOLS); s++)
 	{
 		// remove dups on CPU (dup removal on GPU is not fully exact and can pass on some invalid _solutions)
@@ -1340,10 +1361,11 @@ __host__ void CudaSolver::Solve(BeamWork::Ref aWork, Listener &aListener)
 	LOG(Info) << "time = " << (unsigned)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - _start).count() << " ms";
 
 	LOG(Info) << "Solutions count: " << _solutions->nsols;
-#endif
+
 	if (_solutions->nsols > MAXREALSOLS) {
 		LOG(Info) << "Missing sols: " << (_solutions->nsols - MAXREALSOLS);
 	}
+#endif
 
 	for (u32 s = 0; (s < _solutions->nsols) && (s < MAXREALSOLS); s++)
 	{

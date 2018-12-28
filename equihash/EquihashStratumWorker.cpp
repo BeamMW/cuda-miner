@@ -551,7 +551,7 @@ public:
 					work->_input.Import(input->GetValue(), true);
 					if (auto difficulty = aCall[kDifficulty]) {
 						work->_powDiff = beam::Difficulty(difficulty->GetULongValue());
-						LOG(Info) << "New job " << work->_id;
+						LOG(Info) << "New job #" << work->_id << " at difficulty " << work->_powDiff.ToFloat();
 						_worker.SetWork(*work);
 						return true;
 					}
@@ -608,14 +608,18 @@ public:
 	void Serialize(std::string &aBuffer) const override
 	{
 		// 	{\"method\" : \"solution\", \"id\": \"id\", \"nonce\": \"nonce\", \"output\": \"solution\", \"jsonrpc\":\"2.0\" } \n;
-		
+		std::string nonce;
+
 		aBuffer += "{\"method\":\"solution\",\"id\":\"";
 		aBuffer += _id;
 		aBuffer += "\",\"nonce\":\"";
-		_solution->PrintNonce(aBuffer, false);
+		_solution->PrintNonce(nonce, false);
+		aBuffer += nonce;
 		aBuffer += "\",\"output\":\"";
 		_solution->PrintSolution(aBuffer);
 		aBuffer += "\",\"jsonrpc\":\"2.0\"}\n";
+
+		LOG(Info) << "Submitting solution for job #" << _id << " with nonce " << nonce;
 	}
 
 protected:

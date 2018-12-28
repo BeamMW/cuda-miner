@@ -34,7 +34,9 @@ unsigned EquihashCudaMiner::Search(const core::Work &aWork)
 		_solver->Solve(static_cast<const BeamWork&>(aWork), *this);
 #endif
 	}
-	catch (const std::exception &) {
+	catch (const std::exception &e) {
+		LOG(Error) << "Error into CUDA Solver: " << e.what();
+		return -1;
 	}
 	return 1;
 }
@@ -48,7 +50,8 @@ void EquihashCudaMiner::Search(const core::Work &aWork, Solver::Listener &aListe
 		_solver->Solve(static_cast<const BeamWork&>(aWork), aListener);
 #endif
 	}
-	catch (const std::exception &) {
+	catch (const std::exception &e) {
+		LOG(Error) << "Error into CUDA Solver: " << e.what();
 	}
 }
 
