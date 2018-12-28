@@ -1,4 +1,4 @@
-# cmake .. -DCMAKE_C_COMPILER=gcc-6 -DCMAKE_CXX_COMPILER=g++-6 -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-9.0 -DAMDAPPSDKROOT=/opt/AMDAPPSDK-3.0
+# cmake .. -DCMAKE_C_COMPILER=gcc-6 -DCMAKE_CXX_COMPILER=g++-6
 
 cmake_minimum_required(VERSION 3.5)
 
@@ -68,20 +68,6 @@ endif()
 
 include_directories(equihash)
 
-if (EQUIHASHCL)
-    unset(OPENCL_LIBRARIES CACHE)
-    set(OPENCL_INCLUDE_DIRS ${AMDAPPSDKROOT}/include/)
-    mark_as_advanced(OPENCL_INCLUDE_DIRS)
-    set(OPENCL_LIBRARIES "-L${AMDAPPSDKROOT}/lib/x86_64/sdk -lOpenCL -ldl")
-    mark_as_advanced(OPENCL_LIBRARIES)
-
-    include_directories(${OPENCL_INCLUDE_DIRS})
-
-    add_subdirectory(equihash/cl)
-#    if (BINKERN)
-#        add_subdirectory(equihash/cl/kernels)
-#    endif()
-endif()
 if (EQUIHASHCUDA)
     find_package(CUDA REQUIRED)
     include_directories(${CUDA_INCLUDE_DIRS})
