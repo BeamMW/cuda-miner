@@ -523,14 +523,14 @@ void EquihashFarm::PrintStatistics() const
 			<< ", t:"   << (unsigned)hardwareMetrics.t
 			<< "C P:"   << (unsigned)hardwareMetrics.P
 			<< "W fan:" << (unsigned)hardwareMetrics.fan
-			<< "% "    << (unsigned)metrics.solutionRateNow << "/" << (unsigned)metrics.solutionRateTotal << " Sol/s";
+			<< "% "     << std::setprecision(3) << float(metrics.solutionRateNow) << "/" << std::setprecision(3) << float(metrics.solutionRateTotal) << " Sol/s";
 		total += metrics;
 	}
 	if (_miners.size() > 1) {
 		LOG(Info)
 			<< "Total: A:" << total.accepted << "/R:" << total.rejected
-			<< " " << (unsigned)total.solutionRateNow << "/" << (unsigned)total.solutionRateTotal << " Sol/s ("
-			<< (unsigned)total.hashRateNow << "/" << (unsigned)total.hashRateTotal << " H/s)";
+			<< " " << std::setprecision(3) << float(total.solutionRateNow) << "/" << std::setprecision(3) << float(total.solutionRateTotal) << " Sol/s ("
+			<< std::setprecision(3) << float(total.hashRateNow) << "/" << std::setprecision(3) << float(total.hashRateTotal) << " H/s)";
 	}
 }
 

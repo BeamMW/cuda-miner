@@ -32,17 +32,24 @@ function(configureProject)
 #    add_definitions(-DCONTINUOUS_MINER=1)
 endfunction()
 
-configureProject()
+#configureProject()
 
 find_package(Threads REQUIRED)
 
-find_package(OpenSSL REQUIRED FLAGS STATIC)
+find_package(OpenSSL REQUIRED)
 
-message("OpenSSL include dir: ${OPENSSL_INCLUDE_DIR}")
-message("OpenSSL libraries: ${OPENSSL_LIBRARIES}")
+if( OpenSSL_FOUND )
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
+    link_directories(${OPENSSL_LIBRARIES})
+    include_directories(${OPENSSL_INCLUDE_DIR})
+    message(STATUS "Using OpenSSL ${OPENSSL_VERSION}")
 
-include_directories(${OPENSSL_INCLUDE_DIR})
-list(APPEND LIB_LIST ${OPENSSL_LIBRARIES})
+    # cmake can't find static lib on macos, harcoded
+    set(OPENSSL_LIBCRYPTO /usr/lib/x86_64-linux-gnu/libcrypto.a)
+    set(OPENSSL_LIBSSL /usr/lib/x86_64-linux-gnu/libssl.a)
+else()
+    message(FATAL_ERROR "error, OpenSSL not found, please install: 'apt-get install libssl-dev' on Ubuntu")
+endif()
 
 message("------------------------------------------------------------------------")
 message("-- CMake ${CMAKE_VERSION}")
@@ -56,7 +63,7 @@ message("")
 
 include(ProjectCompilerSettings)
 if(UNIX AND NOT APPLE)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++  -static-libgcc")
 endif()
 
 include_directories(equihash)

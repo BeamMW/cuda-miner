@@ -61,6 +61,6 @@ if (EQUIHASHCUDA)
 endif()
 
 add_library(base STATIC ${SOURCES})
-target_link_libraries(base PRIVATE Threads::Threads OpenSSL::SSL)
+target_link_libraries(base PRIVATE Threads::Threads ${OPENSSL_LIBSSL} ${OPENSSL_LIBCRYPTO})
 target_include_directories(base PRIVATE ..)
 
