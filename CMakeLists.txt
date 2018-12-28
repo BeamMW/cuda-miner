@@ -29,10 +29,9 @@ function(configureProject)
     if (BINKERN)
         add_definitions(-DBIN_KERN=1)
     endif()
-#    add_definitions(-DCONTINUOUS_MINER=1)
 endfunction()
 
-#configureProject()
+configureProject()
 
 find_package(Threads REQUIRED)
 
@@ -61,9 +60,8 @@ message("-- BINKERN          Install AMD binary kernels               ${BINKERN}
 message("------------------------------------------------------------------------")
 message("")
 
-include(ProjectCompilerSettings)
 if(UNIX AND NOT APPLE)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++  -static-libgcc")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static-libgcc")
 endif()
 
 include_directories(equihash)
