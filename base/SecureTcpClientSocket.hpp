@@ -19,5 +19,8 @@ public:
 	void Close() override;
 	int Recv(char* buf, size_t maxLen, DWORD aRecvTimeout = INFINITE) override;
 	int Send(const char* buf, size_t len) override;
+
+protected:
+	bool InitSecureContext();
 };
 

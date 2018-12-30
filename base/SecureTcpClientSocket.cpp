@@ -16,19 +16,6 @@ SecureTcpClientSocket::SecureTcpClientSocket()
 		}
 		gSslIsInited = true;
 	}
-	if (gSslIsEnabled) {
-		const SSL_METHOD *method;
-
-		OpenSSL_add_all_algorithms();  /* Load cryptos, et.al. */
-		SSL_load_error_strings();   /* Bring in and register error messages */
-		method = SSLv23_client_method();  /* Create new client-method instance */
-		_sslCtx = SSL_CTX_new(method);   /* Create new context */
-		if (nullptr == _sslCtx) {
-			char buffer[128];
-			ERR_error_string_n(ERR_get_error(), buffer, sizeof(buffer));
-			LOG(Error) << "Create SSL Context error: " << buffer;
-		}
-	}
 }
 
 SecureTcpClientSocket::~SecureTcpClientSocket()
@@ -36,13 +23,37 @@ SecureTcpClientSocket::~SecureTcpClientSocket()
 	Close();
 }
 
+bool SecureTcpClientSocket::InitSecureContext()
+{
+	if (gSslIsEnabled) {
+		if (nullptr == _sslCtx) {
+			const SSL_METHOD *method;
+
+			OpenSSL_add_all_algorithms();  /* Load cryptos, et.al. */
+			SSL_load_error_strings();   /* Bring in and register error messages */
+			method = SSLv23_client_method();  /* Create new client-method instance */
+			_sslCtx = SSL_CTX_new(method);   /* Create new context */
+			if (nullptr == _sslCtx) {
+				char buffer[128];
+				ERR_error_string_n(ERR_get_error(), buffer, sizeof(buffer));
+				LOG(Error) << "Create SSL Context error: " << buffer;
+				return false;
+			}
+		}
+		return true;
+	}
+	else {
+		return false;
+	}
+}
+
 bool SecureTcpClientSocket::Connect(const char *aHost, uint16_t aPort, DWORD aRecvTimeout, DWORD aSendTimeout)
 {
 	if (TcpClientSocket::Connect(aHost, aPort, aRecvTimeout, aSendTimeout)) {
-		if (_sslCtx) {
+		if (InitSecureContext()) {
 			_ssl = SSL_new(_sslCtx);
 			if (nullptr != _ssl) {
-				SSL_set_fd(_ssl, _socket);
+				SSL_set_fd(_ssl, (int)_socket);
 				if (-1 != SSL_connect(_ssl)) {
 					LOG(Trace) << "Connected with " << SSL_get_cipher(_ssl) << " encryption";
 					return true;

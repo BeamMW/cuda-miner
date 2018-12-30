@@ -14,7 +14,7 @@
 #endif
 #include <iomanip>
 
-#define BEAM_EQUIHASH_VERSION "1.0.0.75"
+#define BEAM_EQUIHASH_VERSION "1.0.0.76"
 
 static void PrintVersion()
 {
