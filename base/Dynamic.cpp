@@ -3,18 +3,12 @@
 
 //	Override methods of Manageable
 
-ULONG STDMETHODCALLTYPE
-Dynamic::AddRef (
-	void
-)
+unsigned long Dynamic::AddRef()
 {
 	return m_nRefCount++;
 }
 
-ULONG STDMETHODCALLTYPE
-Dynamic::Release (
-	void
-)
+unsigned long Dynamic::Release()
 {
 	if (0 != m_nRefCount) {
 		if (0 == m_nRefCount--) {
@@ -26,11 +20,7 @@ Dynamic::Release (
 	return m_nRefCount;
 }
 
-ULONG
-Dynamic::getRefCount (
-	void
-)
-const
+unsigned long Dynamic::getRefCount() const
 {
 	return m_nRefCount;
 }

@@ -11,9 +11,9 @@ private:
 	std::atomic_long	m_nRefCount;
 
 public:
-	__inline Dynamic() : m_nRefCount(0) {}
+	Dynamic() : m_nRefCount(0) {}
 
-	__inline Dynamic(const Dynamic &) : m_nRefCount(0) {}
+	Dynamic(const Dynamic &) : m_nRefCount(0) {}
 
 	//	Override methods of Manageable
 

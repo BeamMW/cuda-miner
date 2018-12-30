@@ -1,5 +1,3 @@
-find_package(CUDA REQUIRED)
-
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};--ptxas-options=-v;-use_fast_math;-maxrregcount=100)
 list(APPEND CUDA_NVCC_FLAGS "--disable-warnings")
 

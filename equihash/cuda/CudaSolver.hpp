@@ -3,7 +3,6 @@
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-#include "device_functions_decls.h"
 #include "../blake2/blake2.h"
 #include "../Solver.hpp"
 

@@ -1,18 +1,19 @@
 # cmake .. -DCMAKE_C_COMPILER=gcc-6 -DCMAKE_CXX_COMPILER=g++-6
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.1)
 
-project(beam-equihash)
+set(VERSION_MAJOR 1)
+set(VERSION_MINOR 0)
+set(VERSION_REVISION 0)
+
+project(beam-equihash VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_REVISION})
+
+message("BEAM_VERSION: ${PROJECT_VERSION}")
 
 if (NOT CMAKE_BUILD_TYPE)
     message(STATUS "No build type selected, defaulting to Release")
     set(CMAKE_BUILD_TYPE "Release")
 endif ()
-
-set(module_dir ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-if(EXISTS ${module_dir})
-    list(APPEND CMAKE_MODULE_PATH ${module_dir})
-endif()
 
 option(EQUIHASHCL "Build with OpenCL mining" OFF)
 option(EQUIHASHCUDA "Build with CUDA mining" ON)
@@ -33,21 +34,41 @@ endfunction()
 
 configureProject()
 
-find_package(Threads REQUIRED)
+if(MSVC)
+    include_directories($ENV{OPENSSL_ROOT_DIR}/include)
 
-find_package(OpenSSL REQUIRED)
+    set(OPENSSL_LIBCRYPTO $ENV{OPENSSL_ROOT_DIR}/lib/VC/static/libcrypto64MT.lib crypt32.lib)
+    set(OPENSSL_LIBSSL $ENV{OPENSSL_ROOT_DIR}/lib/VC/static/libssl64MT.lib)
 
-if( OpenSSL_FOUND )
-    set(OPENSSL_USE_STATIC_LIBS TRUE)
-    link_directories(${OPENSSL_LIBRARIES})
-    include_directories(${OPENSSL_INCLUDE_DIR})
-    message(STATUS "Using OpenSSL ${OPENSSL_VERSION}")
+    if(MSVC_VERSION GREATER_EQUAL 1900)
+        set(OPENSSL_LIBCRYPTO ${OPENSSL_LIBCRYPTO} legacy_stdio_definitions.lib)
+    endif()
 
-    # cmake can't find static lib on macos, harcoded
-    set(OPENSSL_LIBCRYPTO /usr/lib/x86_64-linux-gnu/libcrypto.a)
-    set(OPENSSL_LIBSSL /usr/lib/x86_64-linux-gnu/libssl.a)
+    # use static runtime
+    foreach(flag_var CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO
+        flag_var CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+        CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
+
+        if(${flag_var} MATCHES "/MD")
+            string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+        endif(${flag_var} MATCHES "/MD")
+    endforeach(flag_var)
 else()
-    message(FATAL_ERROR "error, OpenSSL not found, please install: 'apt-get install libssl-dev' on Ubuntu")
+    find_package(OpenSSL REQUIRED)
+
+    if( OpenSSL_FOUND )
+        set(OPENSSL_USE_STATIC_LIBS TRUE)
+        link_directories(${OPENSSL_LIBRARIES})
+        include_directories(${OPENSSL_INCLUDE_DIR})
+        message(STATUS "Using OpenSSL ${OPENSSL_VERSION}")
+
+        # cmake can't find static lib on macos, harcoded
+        set(OPENSSL_LIBCRYPTO /usr/lib/x86_64-linux-gnu/libcrypto.a)
+        set(OPENSSL_LIBSSL /usr/lib/x86_64-linux-gnu/libssl.a)
+    else()
+        message(FATAL_ERROR "error, OpenSSL not found, please install: 'apt-get install libssl-dev' on Ubuntu")
+    endif()
 endif()
 
 message("------------------------------------------------------------------------")
@@ -67,7 +88,11 @@ endif()
 include_directories(equihash)
 
 if (EQUIHASHCUDA)
-    find_package(CUDA REQUIRED)
+    if(MSVC)
+        find_package(CUDA 10.0 REQUIRED)
+    else()
+        find_package(CUDA REQUIRED)
+    endif()
     include_directories(${CUDA_INCLUDE_DIRS})
     add_subdirectory(equihash/cuda)
 endif ()

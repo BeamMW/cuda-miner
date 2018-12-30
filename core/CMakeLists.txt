@@ -46,6 +46,6 @@ if (EQUIHASHCUDA)
 endif()
 
 add_library(core STATIC ${SOURCES})
-target_link_libraries(core PRIVATE base Threads::Threads)
+target_link_libraries(core PRIVATE base)
 target_include_directories(core PRIVATE ..)
 
