@@ -2,7 +2,6 @@
 #include "base/Endian.hpp"
 #include "base/Logging.hpp"
 #include "EquihashCudaMiner.hpp"
-#include "../EquihashSolution.hpp"
 #include "../BeamSolution.hpp"
 
 #if USE_CUDA
@@ -67,17 +66,6 @@ void EquihashCudaMiner::Done()
 bool EquihashCudaMiner::IsCancel(const core::Work &aWork)
 {
 	return false;
-}
-
-void EquihashCudaMiner::OnSolution(const EquihashWork &aWork, const std::vector<uint32_t> &aIndexVector, size_t aCbitlen)
-{
-	_statistics.solutions.inc();
-	if (EquihashSolution::Ref solution = new EquihashSolution(GetId(), aWork, &_statistics)) {
-		solution->Add(aIndexVector, aCbitlen);
-		if (solution->GetHash() < _worker.GetTarget()) {
-			_worker.PostSolution(*solution);
-		}
-	}
 }
 
 void EquihashCudaMiner::OnSolution(const BeamWork &aWork, const std::vector<uint32_t> &aIndexVector, size_t aCbitlen)

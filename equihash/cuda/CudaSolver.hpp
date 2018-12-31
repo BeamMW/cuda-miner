@@ -51,7 +51,7 @@ struct scontainerreal
 	u32 sols[MAXREALSOLS][PROOFSIZE];
 	u32 nsols;
 };
-#if WN == 150 && WK == 5
+
 struct equi;
 struct slot;
 
@@ -62,9 +62,7 @@ struct CudaSolver : public Solver
 	CudaSolver(const std::string &aId, int aDeviceId);
 	~CudaSolver() override;
 
-	void Solve(EquihashWork::Ref aWork, Listener &aListener) override;
 	void Solve(BeamWork::Ref aWork, Listener &aListener) override;
-	void Test(blake2b_state &aState, Listener &aListener);
 
 	const cudaDeviceProp & GetDeviceProperties() const { return _deviceProps; }
 
@@ -73,62 +71,9 @@ protected:
 	int					_deviceId;
 	cudaDeviceProp		_deviceProps;
 	equi				*_deviceEq;
-#if DEEP_CUDA_DEBUG
-	equi				*_hostEq;
-	struct {
-		u32		*baseMap = nullptr;
-		uint2	*pairs[4];
-		u32		*round[5];
-	}					_hostMemory;
-#else
-	scontainerreal	*_solutions = nullptr;
-#endif
-	struct {
-		u32		*baseMap = nullptr;
-		u32		*units[13];
-	}					_memory;
-};
-#else
-template <u32 RB, u32 SM>
-struct equi;
-
-struct slot;
-
-template <u32 RB, u32 SM, u32 SSM, u32 THREADS, typename PACKER>
-struct CudaSolver : public Solver
-{
-	CudaSolver(const std::string &aId, int aDeviceId);
-	~CudaSolver() override;
-
-	void Solve(EquihashWork::Ref aWork, Listener &aListener) override;
-	void Test(blake2b_state &aState, Listener &aListener);
-
-	const cudaDeviceProp & GetDeviceProperties() const { return _deviceProps; }
-
-protected:
-	std::string			_id;
-	int					_deviceId;
-	cudaDeviceProp		_deviceProps;
-	equi<RB, SM>		*_deviceEq;
-#if WN == 150 && WK == 5
-	equi<RB, SM>		*_hostEq;
-	struct {
-		u32		*baseMap = nullptr;
-		uint2	*pairs[4];
-		u32		*round[5];
-	}					_hostMemory;
-	struct {
-		u32		*baseMap = nullptr;
-		u32		*units[13];
-	}					_memory;
-#else
 	scontainerreal		*_solutions = nullptr;
-#endif
+	struct {
+		u32		*baseMap = nullptr;
+		u32		*units[13];
+	}					_memory;
 };
-
-#define CONFIG_MODE_1	9, 1248, 12, 640, packer_cantor
-#if 0
-#define CONFIG_MODE_2	8, 640, 12, 512, packer_default
-#endif
-#define CONFIG_MODE_3	9, 1248, 10, 640, packer_cantor
-#endif

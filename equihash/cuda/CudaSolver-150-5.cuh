@@ -19,10 +19,6 @@
 
 #define	BEAM_WORK_MODE	1
 
-#if BEAM_WORK_MODE
-#include "blake2b.cuh"
-#endif
-
 struct Equihash
 {
 	const static u32 DigitsCount	= (WK + 1);
@@ -88,25 +84,10 @@ typedef uint2 (*Pairs)[Equihash::SlotsCount];
 
 struct equi
 {
-#if BEAM_WORK_MODE
-	blake2b_state blake_ctx;
-#else
-	union
-	{
-		u64 blake_h[8];
-		u32 blake_h32[16];
-	};
-#endif
-	struct
-	{
-		u32 nslots[5][Equihash::BucketsCount];
-		scontainerreal srealcont;
-		u32 outOfRange;
-		u32 indexErrorJ;
-		u32 indexErrorK;
-	} edata;
+	u32 nslots[5][Equihash::BucketsCount];
+	scontainerreal srealcont;
 };
-#if !BEAM_WORK_MODE
+
 __device__ __constant__ const u64 blake_iv[] =
 {
 	0x6a09e667f3bcc908, 0xbb67ae8584caa73b,
@@ -167,204 +148,208 @@ __device__ __forceinline__ void G2(u64 & a, u64 & b, u64 & c, u64 & d, u64 x, u6
 	c = c + d;
 	((uint2*)&b)[0] = ROR2(((uint2*)&b)[0] ^ ((uint2*)&c)[0], 63U);
 }
-#endif
-__global__ void stage_init(equi *eq, BaseMap baseMap, Items xorOut)
+
+__global__ void stage_init(equi *eq, BaseMap baseMap, Items xorOut, u64 blockHeader1, u64 blockHeader2, u64 blockHeader3, u64 blockHeader4, u64 nonce)
 {
 	const u32 block = blockIdx.x * blockDim.x + threadIdx.x;
-#if BEAM_WORK_MODE
-	blake2b_state state;
-#else
-	__shared__ u64 hash_h[8];
-	u32* hash_h32 = (u32*)hash_h;
 
-	if (threadIdx.x < 16) {
-		hash_h32[threadIdx.x] = __ldca(&eq->blake_h32[threadIdx.x]);
-	}
-
-	__syncthreads();
-#endif
 	if (block < Equihash::BlakesCount)
 	{
-#if BEAM_WORK_MODE
-#if 0
-		state = eq->blake_ctx;
-		blake2b_gpu_hash(&state, block);
-		u32 *v32 = (u32*)&state.h[0];
-#else
-		u32 hash[16];
-		hash[0]  = hash[1]  = hash[2]  = hash[3]  = 0;
-		hash[4]  = hash[5]  = hash[6]  = hash[7]  = 0;
-		hash[8]  = hash[9]  = hash[10] = hash[11] = 0;
-		hash[12] = hash[13] = hash[14] = hash[15] = 0;
+		union
+		{
+			u64 m[8];
+			u32 m32[16];
+		};
 
-		u32 startIndex = block & 0xFFFFFFF0;
+		{
+			u64 blakeState[8];
 
-		for (u32 g2 = startIndex; g2 <= block; g2++) {
-			state = eq->blake_ctx;
-			blake2b_gpu_hash(&state, g2);
-			for (u32 idx = 0; idx < 16; idx++) {
-				hash[idx] += ((u32*)&state.h[0])[idx];
+			blakeState[0] = blake_iv[0] ^ (0x01010000 | 57);	// We want to read 57 bytes from each blake call
+
+			blakeState[1] = blake_iv[1];
+			blakeState[2] = blake_iv[2];
+			blakeState[3] = blake_iv[3];
+			blakeState[4] = blake_iv[4];
+			blakeState[5] = blake_iv[5];
+
+			blakeState[6] = blake_iv[6] ^ 0x576F502D6D616542ull;   // Equals personalization string "Beam-PoW"
+
+			blakeState[7] = blake_iv[7] ^ 0x0000000500000096ull; // k, n
+
+			union
+			{
+				u64 v[16];
+				u32 v32[32];
+				uint4 v128[8];
+			};
+
+			v[0] = blakeState[0];
+			v[1] = blakeState[1];
+			v[2] = blakeState[2];
+			v[3] = blakeState[3];
+			v[4] = blakeState[4];
+			v[5] = blakeState[5];
+			v[6] = blakeState[6];
+			v[7] = blakeState[7];
+			v[8] = blake_iv[0];
+			v[9] = blake_iv[1];
+			v[10] = blake_iv[2];
+			v[11] = blake_iv[3];
+			v[12] = blake_iv[4] ^ (32 + 8 + 4); // input + nonce + block
+			v[13] = blake_iv[5];
+			v[14] = blake_iv[6] ^ 0xffffffffffffffff;
+			v[15] = blake_iv[7];
+
+			m[0] = blockHeader1;
+			m[1] = blockHeader2;
+			m[2] = blockHeader3;
+			m[3] = blockHeader4;
+
+			m[4] = nonce;
+			m[5] = block;
+
+			// mix 1
+			G2(v[0], v[4], v[8], v[12], m[0], m[1]);
+			G2(v[1], v[5], v[9], v[13], m[2], m[3]);
+			G2(v[2], v[6], v[10], v[14], m[4], m[5]);
+			G2(v[3], v[7], v[11], v[15], 0, 0);
+			G2(v[0], v[5], v[10], v[15], 0, 0);
+			G2(v[1], v[6], v[11], v[12], 0, 0);
+			G2(v[2], v[7], v[8], v[13], 0, 0);
+			G2(v[3], v[4], v[9], v[14], 0, 0);
+
+			// mix 2
+			G2(v[0], v[4], v[8], v[12], 0, 0);
+			G2(v[1], v[5], v[9], v[13], m[4], 0);
+			G2(v[2], v[6], v[10], v[14], 0, 0);
+			G2(v[3], v[7], v[11], v[15], 0, 0);
+			G2(v[0], v[5], v[10], v[15], m[1], 0);
+			G2(v[1], v[6], v[11], v[12], m[0], m[2]);
+			G2(v[2], v[7], v[8], v[13], 0, 0);
+			G2(v[3], v[4], v[9], v[14], m[5], m[3]);
+
+			// mix 3
+			G2(v[0], v[4], v[8], v[12], 0, 0);
+			G2(v[1], v[5], v[9], v[13], 0, m[0]);
+			G2(v[2], v[6], v[10], v[14], m[5], m[2]);
+			G2(v[3], v[7], v[11], v[15], 0, 0);
+			G2(v[0], v[5], v[10], v[15], 0, 0);
+			G2(v[1], v[6], v[11], v[12], m[3], 0);
+			G2(v[2], v[7], v[8], v[13], 0, m[1]);
+			G2(v[3], v[4], v[9], v[14], 0, m[4]);
+
+			// mix 4
+			G2(v[0], v[4], v[8], v[12], 0, 0);
+			G2(v[1], v[5], v[9], v[13], m[3], m[1]);
+			G2(v[2], v[6], v[10], v[14], 0, 0);
+			G2(v[3], v[7], v[11], v[15], 0, 0);
+			G2(v[0], v[5], v[10], v[15], m[2], 0);
+			G2(v[1], v[6], v[11], v[12], m[5], 0);
+			G2(v[2], v[7], v[8], v[13], m[4], m[0]);
+			G2(v[3], v[4], v[9], v[14], 0, 0);
+
+			// mix 5
+			G2(v[0], v[4], v[8], v[12], 0, m[0]);
+			G2(v[1], v[5], v[9], v[13], m[5], 0);
+			G2(v[2], v[6], v[10], v[14], m[2], m[4]);
+			G2(v[3], v[7], v[11], v[15], 0, 0);
+			G2(v[0], v[5], v[10], v[15], 0, m[1]);
+			G2(v[1], v[6], v[11], v[12], 0, 0);
+			G2(v[2], v[7], v[8], v[13], 0, 0);
+			G2(v[3], v[4], v[9], v[14], m[3], 0);
+
+			// mix 6
+			G2(v[0], v[4], v[8], v[12], m[2], 0);
+			G2(v[1], v[5], v[9], v[13], 0, 0);
+			G2(v[2], v[6], v[10], v[14], m[0], 0);
+			G2(v[3], v[7], v[11], v[15], 0, m[3]);
+			G2(v[0], v[5], v[10], v[15], m[4], 0);
+			G2(v[1], v[6], v[11], v[12], 0, m[5]);
+			G2(v[2], v[7], v[8], v[13], 0, 0);
+			G2(v[3], v[4], v[9], v[14], m[1], 0);
+
+			// mix 7
+			G2(v[0], v[4], v[8], v[12], 0, m[5]);
+			G2(v[1], v[5], v[9], v[13], m[1], 0);
+			G2(v[2], v[6], v[10], v[14], 0, 0);
+			G2(v[3], v[7], v[11], v[15], m[4], 0);
+			G2(v[0], v[5], v[10], v[15], m[0], 0);
+			G2(v[1], v[6], v[11], v[12], 0, m[3]);
+			G2(v[2], v[7], v[8], v[13], 0, m[2]);
+			G2(v[3], v[4], v[9], v[14], 0, 0);
+
+			// mix 8
+			G2(v[0], v[4], v[8], v[12], 0, 0);
+			G2(v[1], v[5], v[9], v[13], 0, 0);
+			G2(v[2], v[6], v[10], v[14], 0, m[1]);
+			G2(v[3], v[7], v[11], v[15], m[3], 0);
+			G2(v[0], v[5], v[10], v[15], m[5], m[0]);
+			G2(v[1], v[6], v[11], v[12], 0, m[4]);
+			G2(v[2], v[7], v[8], v[13], 0, 0);
+			G2(v[3], v[4], v[9], v[14], m[2], 0);
+
+			// mix 9
+			G2(v[0], v[4], v[8], v[12], 0, 0);
+			G2(v[1], v[5], v[9], v[13], 0, 0);
+			G2(v[2], v[6], v[10], v[14], 0, m[3]);
+			G2(v[3], v[7], v[11], v[15], m[0], 0);
+			G2(v[0], v[5], v[10], v[15], 0, m[2]);
+			G2(v[1], v[6], v[11], v[12], 0, 0);
+			G2(v[2], v[7], v[8], v[13], m[1], m[4]);
+			G2(v[3], v[4], v[9], v[14], 0, m[5]);
+
+			// mix 10
+			G2(v[0], v[4], v[8], v[12], 0, m[2]);
+			G2(v[1], v[5], v[9], v[13], 0, m[4]);
+			G2(v[2], v[6], v[10], v[14], 0, 0);
+			G2(v[3], v[7], v[11], v[15], m[1], m[5]);
+			G2(v[0], v[5], v[10], v[15], 0, 0);
+			G2(v[1], v[6], v[11], v[12], 0, 0);
+			G2(v[2], v[7], v[8], v[13], m[3], 0);
+			G2(v[3], v[4], v[9], v[14], 0, m[0]);
+
+			// mix 11
+			G2(v[0], v[4], v[8], v[12], m[0], m[1]);
+			G2(v[1], v[5], v[9], v[13], m[2], m[3]);
+			G2(v[2], v[6], v[10], v[14], m[4], m[5]);
+			G2(v[3], v[7], v[11], v[15], 0, 0);
+			G2(v[0], v[5], v[10], v[15], 0, 0);
+			G2(v[1], v[6], v[11], v[12], 0, 0);
+			G2(v[2], v[7], v[8], v[13], 0, 0);
+			G2(v[3], v[4], v[9], v[14], 0, 0);
+
+			// mix 12
+			G2(v[0], v[4], v[8], v[12], 0, 0);
+			G2(v[1], v[5], v[9], v[13], m[4], 0);
+			G2(v[2], v[6], v[10], v[14], 0, 0);
+			G2(v[3], v[7], v[11], v[15], 0, 0);
+			G2(v[0], v[5], v[10], v[15], m[1], 0);
+			G2(v[1], v[6], v[11], v[12], m[0], m[2]);
+			G2(v[2], v[7], v[8], v[13], 0, 0);
+			G2(v[3], v[4], v[9], v[14], m[5], m[3]);
+
+			v[0] ^= blakeState[0] ^ v[8];
+			v[1] ^= blakeState[1] ^ v[9];
+			v[2] ^= blakeState[2] ^ v[10];
+			v[3] ^= blakeState[3] ^ v[11];
+			v[4] ^= blakeState[4] ^ v[12];
+			v[5] ^= blakeState[5] ^ v[13];
+			v[6] ^= blakeState[6] ^ v[14];
+			v[7] ^= blakeState[7] ^ v[15];
+
+			m[0] = m[1] = m[2] = m[3] = m[4] = m[5] = m[6] = m[7] = 0;
+
+			__syncthreads();
+
+			u32 startIndex = block & 0xFFFFFFF0;
+
+			for (u32 g2 = startIndex; g2 <= block; g2++) {
+				for (u32 idx = 0; idx < 16; idx++) {
+					m32[idx] += __shfl_sync(0xFFFFFFFF, v32[idx], g2, 16);
+				}
 			}
 		}
 
-		u32 *v32 = hash;
-#endif
-#else
-		u64 m = (u64)block << 32;
-
-		union
-		{
-			u64 v[16];
-			u32 v32[32];
-			uint4 v128[8];
-		};
-
-		v[0] = hash_h[0];
-		v[1] = hash_h[1];
-		v[2] = hash_h[2];
-		v[3] = hash_h[3];
-		v[4] = hash_h[4];
-		v[5] = hash_h[5];
-		v[6] = hash_h[6];
-		v[7] = hash_h[7];
-		v[8] = blake_iv[0];
-		v[9] = blake_iv[1];
-		v[10] = blake_iv[2];
-		v[11] = blake_iv[3];
-		v[12] = blake_iv[4] ^ (128 + 16);
-		v[13] = blake_iv[5];
-		v[14] = blake_iv[6] ^ 0xffffffffffffffff;
-		v[15] = blake_iv[7];
-
-		// mix 1
-		G2(v[0], v[4], v[8], v[12], 0, m);
-		G2(v[1], v[5], v[9], v[13], 0, 0);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], 0, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, 0);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		// mix 2
-		G2(v[0], v[4], v[8], v[12], 0, 0);
-		G2(v[1], v[5], v[9], v[13], 0, 0);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], m, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, 0);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		// mix 3
-		G2(v[0], v[4], v[8], v[12], 0, 0);
-		G2(v[1], v[5], v[9], v[13], 0, 0);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], 0, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, m);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		// mix 4
-		G2(v[0], v[4], v[8], v[12], 0, 0);
-		G2(v[1], v[5], v[9], v[13], 0, m);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], 0, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, 0);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		// mix 5
-		G2(v[0], v[4], v[8], v[12], 0, 0);
-		G2(v[1], v[5], v[9], v[13], 0, 0);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], 0, m);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, 0);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		// mix 6
-		G2(v[0], v[4], v[8], v[12], 0, 0);
-		G2(v[1], v[5], v[9], v[13], 0, 0);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], 0, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, 0);
-		G2(v[3], v[4], v[9], v[14], m, 0);
-
-		// mix 7
-		G2(v[0], v[4], v[8], v[12], 0, 0);
-		G2(v[1], v[5], v[9], v[13], m, 0);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], 0, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, 0);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		// mix 8
-		G2(v[0], v[4], v[8], v[12], 0, 0);
-		G2(v[1], v[5], v[9], v[13], 0, 0);
-		G2(v[2], v[6], v[10], v[14], 0, m);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], 0, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, 0);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		// mix 9
-		G2(v[0], v[4], v[8], v[12], 0, 0);
-		G2(v[1], v[5], v[9], v[13], 0, 0);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], 0, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], m, 0);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		// mix 10
-		G2(v[0], v[4], v[8], v[12], 0, 0);
-		G2(v[1], v[5], v[9], v[13], 0, 0);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], m, 0);
-		G2(v[0], v[5], v[10], v[15], 0, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, 0);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		// mix 11
-		G2(v[0], v[4], v[8], v[12], 0, m);
-		G2(v[1], v[5], v[9], v[13], 0, 0);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], 0, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, 0);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		// mix 12
-		G2(v[0], v[4], v[8], v[12], 0, 0);
-		G2(v[1], v[5], v[9], v[13], 0, 0);
-		G2(v[2], v[6], v[10], v[14], 0, 0);
-		G2(v[3], v[7], v[11], v[15], 0, 0);
-		G2(v[0], v[5], v[10], v[15], m, 0);
-		G2(v[1], v[6], v[11], v[12], 0, 0);
-		G2(v[2], v[7], v[8], v[13], 0, 0);
-		G2(v[3], v[4], v[9], v[14], 0, 0);
-
-		v[0] ^= hash_h[0] ^ v[8];
-		v[1] ^= hash_h[1] ^ v[9];
-		v[2] ^= hash_h[2] ^ v[10];
-		v[3] ^= hash_h[3] ^ v[11];
-		v[4] ^= hash_h[4] ^ v[12];
-		v[5] ^= hash_h[5] ^ v[13];
-		v[6] ^= hash_h[6] ^ v[14];
-		v[7] ^= hash_h[7] ^ v[15];
-#endif
 		/*
 		blake	0	1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	16	17	18	19	20	21	22	23	24	25	26	27	28	29	30	31	32	33	34	35	36	37	38	39	40	41	42	43	44	45	46	47	48	49	50	51	52	53	54	55	56
 		words	0	0	0	0	1	1	1	1	2	2	2	2	3	3	3	3	4	4	4	4	5	5	5	5	6	6	6	6	7	7	7	7	8	8	8	8	9	9	9	9	10	10	10	10	11	11	11	11	12	12	12	12	13	13	13	13	14
@@ -379,22 +364,22 @@ __global__ void stage_init(equi *eq, BaseMap baseMap, Items xorOut)
 		u32 itemIndex = Equihash::ItemsPerBlake * block;
 		if (itemIndex < Equihash::ItemsCount)
 		{
-			w = __byte_perm(v32[0], 0, 0x0123); // first 32 bits
+			w = __byte_perm(m32[0], 0, 0x0123); // first 32 bits
 			asm("bfe.u32 %0, %1, 16, 16;" : "=r"(bucketid) : "r"(w));
-			slotp = atomicAdd(&eq->edata.nslots[0][bucketid], 1);
+			slotp = atomicAdd(&eq->nslots[0][bucketid], 1);
 			if (slotp < Equihash::SlotsCount)
 			{
 				baseMap[bucketid][slotp] = itemIndex;
 
 				w = __byte_perm(w, 0, 0x4510) >> 7;
 				xorOut[bucketid][slotp][0] = w;
-				w = __byte_perm(v32[0], v32[1], 0x3456) & 0x7fffffff;
+				w = __byte_perm(m32[0], m32[1], 0x3456) & 0x7fffffff;
 				xorOut[bucketid][slotp][1] = w;
-				w = __byte_perm(v32[1], v32[2], 0x3456);
+				w = __byte_perm(m32[1], m32[2], 0x3456);
 				xorOut[bucketid][slotp][2] = w;
-				w = __byte_perm(v32[2], v32[3], 0x3456);
+				w = __byte_perm(m32[2], m32[3], 0x3456);
 				xorOut[bucketid][slotp][3] = w;
-				w = __byte_perm(v32[3], v32[4], 0x3456) & 0xfffffffc;
+				w = __byte_perm(m32[3], m32[4], 0x3456) & 0xfffffffc;
 				xorOut[bucketid][slotp][4] = w;
 			}
 		}
@@ -402,22 +387,22 @@ __global__ void stage_init(equi *eq, BaseMap baseMap, Items xorOut)
 		itemIndex++;
 		if (itemIndex < Equihash::ItemsCount)
 		{
-			w = __byte_perm(v32[4], v32[5], 0x3456); // first 32 bits
+			w = __byte_perm(m32[4], m32[5], 0x3456); // first 32 bits
 			asm("bfe.u32 %0, %1, 16, 16;" : "=r"(bucketid) : "r"(w));
-			slotp = atomicAdd(&eq->edata.nslots[0][bucketid], 1);
+			slotp = atomicAdd(&eq->nslots[0][bucketid], 1);
 			if (slotp < Equihash::SlotsCount)
 			{
 				baseMap[bucketid][slotp] = itemIndex;
 
 				w = __byte_perm(w, 0, 0x4510) >> 7;
 				xorOut[bucketid][slotp][0] = w;
-				w = __byte_perm(v32[5], v32[6], 0x2345) & 0x7fffffff;
+				w = __byte_perm(m32[5], m32[6], 0x2345) & 0x7fffffff;
 				xorOut[bucketid][slotp][1] = w;
-				w = __byte_perm(v32[6], v32[7], 0x2345);
+				w = __byte_perm(m32[6], m32[7], 0x2345);
 				xorOut[bucketid][slotp][2] = w;
-				w = __byte_perm(v32[7], v32[8], 0x2345);
+				w = __byte_perm(m32[7], m32[8], 0x2345);
 				xorOut[bucketid][slotp][3] = w;
-				w = __byte_perm(v32[8], v32[9], 0x2345) & 0xfffffffc;
+				w = __byte_perm(m32[8], m32[9], 0x2345) & 0xfffffffc;
 				xorOut[bucketid][slotp][4] = w;
 			}
 		}
@@ -425,22 +410,22 @@ __global__ void stage_init(equi *eq, BaseMap baseMap, Items xorOut)
 		itemIndex++;
 		if (itemIndex < Equihash::ItemsCount)
 		{
-			w = __byte_perm(v32[9], v32[10], 0x2345); // first 32 bits
+			w = __byte_perm(m32[9], m32[10], 0x2345); // first 32 bits
 			asm("bfe.u32 %0, %1, 16, 16;" : "=r"(bucketid) : "r"(w));
-			slotp = atomicAdd(&eq->edata.nslots[0][bucketid], 1);
+			slotp = atomicAdd(&eq->nslots[0][bucketid], 1);
 			if (slotp < Equihash::SlotsCount)
 			{
 				baseMap[bucketid][slotp] = itemIndex;
 
 				w = __byte_perm(w, 0, 0x4510) >> 7;
 				xorOut[bucketid][slotp][0] = w;
-				w = __byte_perm(v32[10], v32[11], 0x1234) & 0x7fffffff;
+				w = __byte_perm(m32[10], m32[11], 0x1234) & 0x7fffffff;
 				xorOut[bucketid][slotp][1] = w;
-				w = __byte_perm(v32[11], v32[12], 0x1234);
+				w = __byte_perm(m32[11], m32[12], 0x1234);
 				xorOut[bucketid][slotp][2] = w;
-				w = __byte_perm(v32[12], v32[13], 0x1234);
+				w = __byte_perm(m32[12], m32[13], 0x1234);
 				xorOut[bucketid][slotp][3] = w;
-				w = __byte_perm(v32[13], v32[14], 0x1234) & 0xfffffffc;
+				w = __byte_perm(m32[13], m32[14], 0x1234) & 0xfffffffc;
 				xorOut[bucketid][slotp][4] = w;
 #if 0
 				uint4 ta;
@@ -470,7 +455,7 @@ __global__ void stage_1(equi *eq, Items aInXor, Items4 aOutXor, Pairs aPairs)
 	ht_len[threadid] = 0;
 	ht_len[256 + threadid] = 0;
 
-	u32 backetSize = umin(eq->edata.nslots[0][bucketid], Equihash::SlotsCount);
+	u32 backetSize = umin(eq->nslots[0][bucketid], Equihash::SlotsCount);
 
 	u32 slotIndex;
 	u32 hashIndex;
@@ -524,7 +509,7 @@ __global__ void stage_1(equi *eq, Items aInXor, Items4 aOutXor, Pairs aPairs)
 					xors.w = ta.w ^ cache[ik].w;
 
 					asm("bfe.u32 %0, %1, 15, 16;" : "=r"(xorbucketid) : "r"(xors.x));
-					xorslot = atomicAdd(&eq->edata.nslots[1][xorbucketid], 1);
+					xorslot = atomicAdd(&eq->nslots[1][xorbucketid], 1);
 
 					if (xorslot < Equihash::SlotsCount)
 					{
@@ -552,7 +537,7 @@ __global__ void stage_2(equi *eq, const Items4 aInXor, Items3 aOutXor, Pairs aPa
 	ht_len[threadid] = 0;
 	ht_len[256 + threadid] = 0;
 
-	u32 backetSize = umin(eq->edata.nslots[1][bucketid], Equihash::SlotsCount);
+	u32 backetSize = umin(eq->nslots[1][bucketid], Equihash::SlotsCount);
 
 	u32 slotIndex;
 	u32 hashIndex;
@@ -603,7 +588,7 @@ __global__ void stage_2(equi *eq, const Items4 aInXor, Items3 aOutXor, Pairs aPa
 
 					xorbucketid = __byte_perm(xors.x, xors.y, 0x0765);
 					asm("bfe.u32 %0, %1, 14, 16;" : "=r"(xorbucketid) : "r"(xorbucketid));
-					xorslot = atomicAdd(&eq->edata.nslots[2][xorbucketid], 1);
+					xorslot = atomicAdd(&eq->nslots[2][xorbucketid], 1);
 
 					if (xorslot < Equihash::SlotsCount)
 					{
@@ -633,7 +618,7 @@ __global__ void stage_3(equi *eq, const Items3 aInXor, Items2 aOutXor, Pairs aPa
 	ht_len[threadid] = 0;
 	ht_len[256 + threadid] = 0;
 
-	u32 backetSize = umin(eq->edata.nslots[2][bucketid], Equihash::SlotsCount);
+	u32 backetSize = umin(eq->nslots[2][bucketid], Equihash::SlotsCount);
 
 	u32 slotIndex;
 	u32 hashIndex;
@@ -686,7 +671,7 @@ __global__ void stage_3(equi *eq, const Items3 aInXor, Items2 aOutXor, Pairs aPa
 
 					xorbucketid = __byte_perm(xors.y, xors.z, 0x1076);
 					asm("bfe.u32 %0, %1, 13, 16;" : "=r"(xorbucketid) : "r"(xorbucketid));
-					xorslot = atomicAdd(&eq->edata.nslots[3][xorbucketid], 1);
+					xorslot = atomicAdd(&eq->nslots[3][xorbucketid], 1);
 
 					if (xorslot < Equihash::SlotsCount)
 					{
@@ -716,7 +701,7 @@ __global__ void stage_4(equi *eq, const Items2 aInXor, Items2 aOutXor, Pairs aPa
 	ht_len[threadid] = 0;
 	ht_len[256 + threadid] = 0;
 
-	u32 backetSize = umin(eq->edata.nslots[3][bucketid], Equihash::SlotsCount);
+	u32 backetSize = umin(eq->nslots[3][bucketid], Equihash::SlotsCount);
 
 	u32 slotIndex;
 	u32 hashIndex;
@@ -763,7 +748,7 @@ __global__ void stage_4(equi *eq, const Items2 aInXor, Items2 aOutXor, Pairs aPa
 					xors = ta ^ cache[ik];
 
 					asm("bfe.u32 %0, %1, 4, 16;" : "=r"(xorbucketid) : "r"(xors.x));
-					xorslot = atomicAdd(&eq->edata.nslots[4][xorbucketid], 1);
+					xorslot = atomicAdd(&eq->nslots[4][xorbucketid], 1);
 
 					if (xorslot < Equihash::SlotsCount)
 					{
@@ -795,7 +780,7 @@ __global__ void stage_last(equi *eq, BaseMap aBaseMap, uint2 *aPairs, Items2 aIn
 	ht_len[threadid] = 0;
 	ht_len[256 + threadid] = 0;
 
-	u32 backetSize = umin(eq->edata.nslots[4][bucketid], Equihash::SlotsCount);
+	u32 backetSize = umin(eq->nslots[4][bucketid], Equihash::SlotsCount);
 
 	u32 slotIndex;
 	u32 hashIndex;
@@ -883,42 +868,42 @@ __global__ void stage_last(equi *eq, BaseMap aBaseMap, uint2 *aPairs, Items2 aIn
 							indexes[9] = pairsTree[1][indexes[8].y >> 16][indexes[8].y & 0xffff];
 							indexes[8] = pairsTree[1][indexes[8].x >> 16][indexes[8].x & 0xffff];
 
-							u32 soli = atomicAdd(&eq->edata.srealcont.nsols, 1);
+							u32 soli = atomicAdd(&eq->srealcont.nsols, 1);
 #if 1
 							if (soli < MAXREALSOLS)
 							{
-								eq->edata.srealcont.sols[soli][0] = aBaseMap[indexes[0].x >> 16][indexes[0].x & 0xffff];
-								eq->edata.srealcont.sols[soli][1] = aBaseMap[indexes[0].y >> 16][indexes[0].y & 0xffff];
-								eq->edata.srealcont.sols[soli][2] = aBaseMap[indexes[1].x >> 16][indexes[1].x & 0xffff];
-								eq->edata.srealcont.sols[soli][3] = aBaseMap[indexes[1].y >> 16][indexes[1].y & 0xffff];
-								eq->edata.srealcont.sols[soli][4] = aBaseMap[indexes[2].x >> 16][indexes[2].x & 0xffff];
-								eq->edata.srealcont.sols[soli][5] = aBaseMap[indexes[2].y >> 16][indexes[2].y & 0xffff];
-								eq->edata.srealcont.sols[soli][6] = aBaseMap[indexes[3].x >> 16][indexes[3].x & 0xffff];
-								eq->edata.srealcont.sols[soli][7] = aBaseMap[indexes[3].y >> 16][indexes[3].y & 0xffff];
-								eq->edata.srealcont.sols[soli][8] = aBaseMap[indexes[4].x >> 16][indexes[4].x & 0xffff];
-								eq->edata.srealcont.sols[soli][9] = aBaseMap[indexes[4].y >> 16][indexes[4].y & 0xffff];
-								eq->edata.srealcont.sols[soli][10] = aBaseMap[indexes[5].x >> 16][indexes[5].x & 0xffff];
-								eq->edata.srealcont.sols[soli][11] = aBaseMap[indexes[5].y >> 16][indexes[5].y & 0xffff];
-								eq->edata.srealcont.sols[soli][12] = aBaseMap[indexes[6].x >> 16][indexes[6].x & 0xffff];
-								eq->edata.srealcont.sols[soli][13] = aBaseMap[indexes[6].y >> 16][indexes[6].y & 0xffff];
-								eq->edata.srealcont.sols[soli][14] = aBaseMap[indexes[7].x >> 16][indexes[7].x & 0xffff];
-								eq->edata.srealcont.sols[soli][15] = aBaseMap[indexes[7].y >> 16][indexes[7].y & 0xffff];
-								eq->edata.srealcont.sols[soli][16] = aBaseMap[indexes[8].x >> 16][indexes[8].x & 0xffff];
-								eq->edata.srealcont.sols[soli][17] = aBaseMap[indexes[8].y >> 16][indexes[8].y & 0xffff];
-								eq->edata.srealcont.sols[soli][18] = aBaseMap[indexes[9].x >> 16][indexes[9].x & 0xffff];
-								eq->edata.srealcont.sols[soli][19] = aBaseMap[indexes[9].y >> 16][indexes[9].y & 0xffff];
-								eq->edata.srealcont.sols[soli][20] = aBaseMap[indexes[10].x >> 16][indexes[10].x & 0xffff];
-								eq->edata.srealcont.sols[soli][21] = aBaseMap[indexes[10].y >> 16][indexes[10].y & 0xffff];
-								eq->edata.srealcont.sols[soli][22] = aBaseMap[indexes[11].x >> 16][indexes[11].x & 0xffff];
-								eq->edata.srealcont.sols[soli][23] = aBaseMap[indexes[11].y >> 16][indexes[11].y & 0xffff];
-								eq->edata.srealcont.sols[soli][24] = aBaseMap[indexes[12].x >> 16][indexes[12].x & 0xffff];
-								eq->edata.srealcont.sols[soli][25] = aBaseMap[indexes[12].y >> 16][indexes[12].y & 0xffff];
-								eq->edata.srealcont.sols[soli][26] = aBaseMap[indexes[13].x >> 16][indexes[13].x & 0xffff];
-								eq->edata.srealcont.sols[soli][27] = aBaseMap[indexes[13].y >> 16][indexes[13].y & 0xffff];
-								eq->edata.srealcont.sols[soli][28] = aBaseMap[indexes[14].x >> 16][indexes[14].x & 0xffff];
-								eq->edata.srealcont.sols[soli][29] = aBaseMap[indexes[14].y >> 16][indexes[14].y & 0xffff];
-								eq->edata.srealcont.sols[soli][30] = aBaseMap[indexes[15].x >> 16][indexes[15].x & 0xffff];
-								eq->edata.srealcont.sols[soli][31] = aBaseMap[indexes[15].y >> 16][indexes[15].y & 0xffff];
+								eq->srealcont.sols[soli][0] = aBaseMap[indexes[0].x >> 16][indexes[0].x & 0xffff];
+								eq->srealcont.sols[soli][1] = aBaseMap[indexes[0].y >> 16][indexes[0].y & 0xffff];
+								eq->srealcont.sols[soli][2] = aBaseMap[indexes[1].x >> 16][indexes[1].x & 0xffff];
+								eq->srealcont.sols[soli][3] = aBaseMap[indexes[1].y >> 16][indexes[1].y & 0xffff];
+								eq->srealcont.sols[soli][4] = aBaseMap[indexes[2].x >> 16][indexes[2].x & 0xffff];
+								eq->srealcont.sols[soli][5] = aBaseMap[indexes[2].y >> 16][indexes[2].y & 0xffff];
+								eq->srealcont.sols[soli][6] = aBaseMap[indexes[3].x >> 16][indexes[3].x & 0xffff];
+								eq->srealcont.sols[soli][7] = aBaseMap[indexes[3].y >> 16][indexes[3].y & 0xffff];
+								eq->srealcont.sols[soli][8] = aBaseMap[indexes[4].x >> 16][indexes[4].x & 0xffff];
+								eq->srealcont.sols[soli][9] = aBaseMap[indexes[4].y >> 16][indexes[4].y & 0xffff];
+								eq->srealcont.sols[soli][10] = aBaseMap[indexes[5].x >> 16][indexes[5].x & 0xffff];
+								eq->srealcont.sols[soli][11] = aBaseMap[indexes[5].y >> 16][indexes[5].y & 0xffff];
+								eq->srealcont.sols[soli][12] = aBaseMap[indexes[6].x >> 16][indexes[6].x & 0xffff];
+								eq->srealcont.sols[soli][13] = aBaseMap[indexes[6].y >> 16][indexes[6].y & 0xffff];
+								eq->srealcont.sols[soli][14] = aBaseMap[indexes[7].x >> 16][indexes[7].x & 0xffff];
+								eq->srealcont.sols[soli][15] = aBaseMap[indexes[7].y >> 16][indexes[7].y & 0xffff];
+								eq->srealcont.sols[soli][16] = aBaseMap[indexes[8].x >> 16][indexes[8].x & 0xffff];
+								eq->srealcont.sols[soli][17] = aBaseMap[indexes[8].y >> 16][indexes[8].y & 0xffff];
+								eq->srealcont.sols[soli][18] = aBaseMap[indexes[9].x >> 16][indexes[9].x & 0xffff];
+								eq->srealcont.sols[soli][19] = aBaseMap[indexes[9].y >> 16][indexes[9].y & 0xffff];
+								eq->srealcont.sols[soli][20] = aBaseMap[indexes[10].x >> 16][indexes[10].x & 0xffff];
+								eq->srealcont.sols[soli][21] = aBaseMap[indexes[10].y >> 16][indexes[10].y & 0xffff];
+								eq->srealcont.sols[soli][22] = aBaseMap[indexes[11].x >> 16][indexes[11].x & 0xffff];
+								eq->srealcont.sols[soli][23] = aBaseMap[indexes[11].y >> 16][indexes[11].y & 0xffff];
+								eq->srealcont.sols[soli][24] = aBaseMap[indexes[12].x >> 16][indexes[12].x & 0xffff];
+								eq->srealcont.sols[soli][25] = aBaseMap[indexes[12].y >> 16][indexes[12].y & 0xffff];
+								eq->srealcont.sols[soli][26] = aBaseMap[indexes[13].x >> 16][indexes[13].x & 0xffff];
+								eq->srealcont.sols[soli][27] = aBaseMap[indexes[13].y >> 16][indexes[13].y & 0xffff];
+								eq->srealcont.sols[soli][28] = aBaseMap[indexes[14].x >> 16][indexes[14].x & 0xffff];
+								eq->srealcont.sols[soli][29] = aBaseMap[indexes[14].y >> 16][indexes[14].y & 0xffff];
+								eq->srealcont.sols[soli][30] = aBaseMap[indexes[15].x >> 16][indexes[15].x & 0xffff];
+								eq->srealcont.sols[soli][31] = aBaseMap[indexes[15].y >> 16][indexes[15].y & 0xffff];
 							}
 #endif
 						}
@@ -1006,14 +991,7 @@ __host__ CudaSolver::CudaSolver(const std::string &aId, int aDeviceId)
 	, _deviceId(aDeviceId)
 {
 	const size_t memorySize = Equihash::MemoryUnitsCount * Equihash::MemoryUnitSize32 * sizeof(u32);
-#if DEEP_CUDA_DEBUG
-	_hostMemory.pairs[0] = nullptr;
-	_hostMemory.round[0] = nullptr;
-	_hostMemory.round[1] = nullptr;
-	_hostMemory.round[2] = nullptr;
-	_hostMemory.round[3] = nullptr;
-	_hostMemory.round[4] = nullptr;
-#endif
+
 	_memory.units[0] = nullptr;
 
 	ThrowIfCudaErrors(cudaGetDeviceProperties(&_deviceProps, _deviceId));
@@ -1027,48 +1005,12 @@ __host__ CudaSolver::CudaSolver(const std::string &aId, int aDeviceId)
 	ThrowIfCudaErrors(cudaDeviceReset());
 	ThrowIfCudaErrors(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync/* | cudaDeviceMapHost*/));
 	ThrowIfCudaErrors(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
-#if DEEP_CUDA_DEBUG
-	if (cudaHostAlloc(&_hostEq, sizeof(equi), cudaHostAllocDefault) != cudaSuccess) {
-		throw std::runtime_error("CUDA: failed to alloc memory");
-	}
 
-	if (cudaHostAlloc(&_hostMemory.baseMap, Equihash::BucketsCount*Equihash::SlotsCount * sizeof(u32), cudaHostAllocDefault) != cudaSuccess) {
-		throw std::runtime_error("CUDA: failed to alloc memory");
-	}
-
-	if (cudaHostAlloc(&_hostMemory.pairs[0], 4 * Equihash::MemoryUnitSize32 * sizeof(uint2), cudaHostAllocDefault) != cudaSuccess) {
-		throw std::runtime_error("CUDA: failed to alloc memory");
-	}
-
-	_hostMemory.pairs[1] = _hostMemory.pairs[0] + Equihash::MemoryUnitSize32;
-	_hostMemory.pairs[2] = _hostMemory.pairs[1] + Equihash::MemoryUnitSize32;
-	_hostMemory.pairs[3] = _hostMemory.pairs[2] + Equihash::MemoryUnitSize32;
-
-	if (cudaHostAlloc(&_hostMemory.round[0], Equihash::BucketsCount*Equihash::SlotsCount * sizeof(InitSlot), cudaHostAllocDefault) != cudaSuccess) {
-		throw std::runtime_error("CUDA: failed to alloc memory");
-	}
-
-	if (cudaHostAlloc(&_hostMemory.round[1], Equihash::BucketsCount*Equihash::SlotsCount * sizeof(uint4), cudaHostAllocDefault) != cudaSuccess) {
-		throw std::runtime_error("CUDA: failed to alloc memory");
-	}
-
-	if (cudaHostAlloc(&_hostMemory.round[2], Equihash::BucketsCount*Equihash::SlotsCount * sizeof(Slot3), cudaHostAllocDefault) != cudaSuccess) {
-		throw std::runtime_error("CUDA: failed to alloc memory");
-	}
-
-	if (cudaHostAlloc(&_hostMemory.round[3], Equihash::BucketsCount*Equihash::SlotsCount * sizeof(uint2), cudaHostAllocDefault) != cudaSuccess) {
-		throw std::runtime_error("CUDA: failed to alloc memory");
-	}
-
-	if (cudaHostAlloc(&_hostMemory.round[4], Equihash::BucketsCount*Equihash::SlotsCount * sizeof(uint2), cudaHostAllocDefault) != cudaSuccess) {
-		throw std::runtime_error("CUDA: failed to alloc memory");
-	}
-#else
 	if (cudaHostAlloc(&_solutions, sizeof(scontainerreal), cudaHostAllocDefault) != cudaSuccess) {
 		throw std::runtime_error("CUDA: failed to alloc memory");
 	}
-#endif
-	if (cudaMalloc((void**)&_deviceEq, sizeof(equi)) != cudaSuccess) {
+
+	if (cudaMalloc((void**)&_deviceEq, sizeof(struct equi)) != cudaSuccess) {
 		throw std::runtime_error("CUDA: failed to alloc memory");
 	}
 
@@ -1096,168 +1038,9 @@ __host__ CudaSolver::CudaSolver(const std::string &aId, int aDeviceId)
 
 #define	DO_METRICS	0
 
-__host__ void CudaSolver::Solve(EquihashWork::Ref aWork, Listener &aListener)
-{
-	blake2b_state blake_ctx;
-
-//	int blocks = Equihash::BucketsCount;
-#if DO_METRICS
-	LOG(Info) << "Equihash:";
-	LOG(Info) << "\titems count        = " << Equihash::ItemsCount;
-	LOG(Info) << "\tbucket bits        = " << Equihash::BucketBits;
-	LOG(Info) << "\tbuckets count      = " << Equihash::BucketsCount;
-	LOG(Info) << "\trest bits          = " << Equihash::RestBits;
-	LOG(Info) << "\trests count        = " << Equihash::RestsCount;
-	LOG(Info) << "\tslots count        = " << Equihash::SlotsCount;
-//	LOG(Info) << "\tinit slots count   = " << Equihash::InitSlotsCount;
-	LOG(Info) << "\tmemory unit        = " << (Equihash::MemoryUnitSize32/(1024*1024)) << "M u32 items";
-	LOG(Info) << "\tunit size          = " << ((sizeof(u32)*Equihash::MemoryUnitSize32) / (1024 * 1024)) << "M";
-
-	std::chrono::time_point<std::chrono::system_clock>	_start = std::chrono::system_clock::now();
-	uint64_t cycleStart = __rdtsc();
-#endif
-	setheader(&blake_ctx, (const char *)aWork->GetData(), aWork->GetDataSize());
-#if DO_METRICS
-	uint64_t cycleSetHeader = __rdtsc();
-#endif
-#if BEAM_WORK_MODE
-	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_ctx, &blake_ctx, sizeof(blake_ctx), cudaMemcpyHostToDevice));
-#else
-	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_h, &blake_ctx.h, sizeof(u64) * 8, cudaMemcpyHostToDevice));
-#endif
-#if DO_METRICS
-	cudaDeviceSynchronize();
-	uint64_t cycleCopyBlake = __rdtsc();
-#endif
-	ThrowIfCudaErrors(cudaMemset(&_deviceEq->edata, 0, sizeof(_deviceEq->edata)));
-#if DO_METRICS
-	cudaDeviceSynchronize();
-	uint64_t cycleMemset = __rdtsc();
-#endif
-	stage_init << <(Equihash::BlakesCount + 511) / 512, 512 >> >(_deviceEq, (BaseMap)_memory.baseMap, (Items)_memory.units[2]);
-#if DO_METRICS
-	cudaDeviceSynchronize();
-	uint64_t cycleDigit_0 = __rdtsc();
-#endif
-//	stage_1<RB, SM, SSM> << <Equihash::BucketsCount, 512 >> >(_deviceEq, _heap + 3 * Equihash::MemoryUnitSize32, _heap + 10 * Equihash::MemoryUnitSize32, (uint2*)(_heap + 1 * Equihash::MemoryUnitSize32));
-#if DO_METRICS
-	cudaDeviceSynchronize();
-	uint64_t cycleDigit_1 = __rdtsc();
-#endif
-//	stage_2<RB, SM, SSM> << <Equihash::BucketsCount, 512 >> >(_deviceEq, (const uint4 *)(_heap + 10 * Equihash::MemoryUnitSize32), _heap + 7 * Equihash::MemoryUnitSize32, (uint2*)(_heap + 3 * Equihash::MemoryUnitSize32));
-#if DO_METRICS
-	cudaDeviceSynchronize();
-	uint64_t cycleDigit_2 = __rdtsc();
-#endif
-//	stage_3<RB, SM, SSM> << <Equihash::BucketsCount, 512 >> >(_deviceEq, _heap + 7 * Equihash::MemoryUnitSize32, (uint2*)(_heap + 10 * Equihash::MemoryUnitSize32), (uint2*)(_heap + 5 * Equihash::MemoryUnitSize32));
-#if DO_METRICS
-	cudaDeviceSynchronize();
-	uint64_t cycleDigit_3 = __rdtsc();
-#endif
-//	stage_4<RB, SM, SSM> << <Equihash::BucketsCount, 512 >> >(_deviceEq, (uint2*)(_heap + 10 * Equihash::MemoryUnitSize32), (uint2*)(_heap + 12 * Equihash::MemoryUnitSize32), (uint2*)(_heap + 7 * Equihash::MemoryUnitSize32));
-#if DO_METRICS
-	cudaDeviceSynchronize();
-	uint64_t cycleDigit_4 = __rdtsc();
-#endif
-//	stage_last<RB, SM, SSM - 3> << <Equihash::BucketsCount, 512 >> >(_deviceEq, _heap, (uint2*)(_heap + 1 * Equihash::MemoryUnitSize32), (uint2*)(_heap + 12 * Equihash::MemoryUnitSize32));
-#if DO_METRICS
-	cudaDeviceSynchronize();
-	uint64_t cycleDigit_5 = __rdtsc();
-#endif
-#if DEEP_CUDA_DEBUG
-	ThrowIfCudaErrors(cudaMemcpy(_hostEq, _deviceEq, sizeof(equi), cudaMemcpyDeviceToHost));
-	u32 m = 0;
-	for (u32 i = 0; i < Equihash::BucketsCount; i++) {
-		if (_hostEq->edata.nslots[0][i] > m) {
-			m = _hostEq->edata.nslots[0][i];
-		}
-	}
-	scontainerreal *_solutions = &_hostEq->edata.srealcont;
-#else
-	ThrowIfCudaErrors(cudaMemcpy(_solutions, &_deviceEq->edata.srealcont, sizeof(scontainerreal), cudaMemcpyDefault/*DeviceToHost*/));
-#endif
-#if DO_METRICS
-	cudaDeviceSynchronize();
-	uint64_t cycleCopySol = __rdtsc();
-
-	double cycleTotal = cycleCopySol - cycleStart;
-
-	LOG(Info) << "cycleSetHeader = " << (cycleSetHeader - cycleStart)     << " (" << ((cycleSetHeader - cycleStart) / cycleTotal) << ")";
-	LOG(Info) << "cycleCopyBlake = " << (cycleCopyBlake - cycleSetHeader) << " (" << ((cycleCopyBlake - cycleSetHeader) / cycleTotal) << ")";
-	LOG(Info) << "cycleMemset = "    << (cycleMemset - cycleCopyBlake)    << " (" << ((cycleMemset - cycleCopyBlake) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_0 = "   << (cycleDigit_0 - cycleMemset)      << " (" << ((cycleDigit_0 - cycleMemset) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_1 = "   << (cycleDigit_1 - cycleDigit_0)     << " (" << ((cycleDigit_1 - cycleDigit_0) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_2 = "   << (cycleDigit_2 - cycleDigit_1)     << " (" << ((cycleDigit_2 - cycleDigit_1) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_3 = "   << (cycleDigit_3 - cycleDigit_2)     << " (" << ((cycleDigit_3 - cycleDigit_2) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_4 = "   << (cycleDigit_4 - cycleDigit_3)     << " (" << ((cycleDigit_4 - cycleDigit_3) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_5 = "   << (cycleDigit_5 - cycleDigit_4)     << " (" << ((cycleDigit_5 - cycleDigit_4) / cycleTotal) << ")";
-	LOG(Info) << "cycleCopySol = "   << (cycleCopySol - cycleDigit_5)     << " (" << ((cycleCopySol - cycleDigit_5) / cycleTotal) << ")";
-	LOG(Info) << "cycleTotal = " << (uint64_t)cycleTotal;
-	LOG(Info) << "time = " << (unsigned)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - _start).count() << " ms";
-
-	LOG(Info) << "Solutions count: " << _solutions->nsols;
-#endif
-#if DO_METRICS
-	if (_solutions->nsols > MAXREALSOLS) {
-		LOG(Info) << "Missing sols: " << (_solutions->nsols - MAXREALSOLS);
-	}
-#endif
-	for (u32 s = 0; (s < _solutions->nsols) && (s < MAXREALSOLS); s++)
-	{
-		// remove dups on CPU (dup removal on GPU is not fully exact and can pass on some invalid _solutions)
-		if (duped(_solutions->sols[s])) {
-			continue;
-		}
-
-		// perform sort of pairs
-		for (uint32_t level = 0; level < WK; level++) {
-			for (uint32_t i = 0; i < (1 << WK); i += (2 << level)) {
-				sort_pair(&_solutions->sols[s][i], 1 << level);
-			}
-		}
-
-		std::vector<uint32_t> index_vector(PROOFSIZE);
-		for (u32 i = 0; i < PROOFSIZE; i++) {
-			index_vector[i] = _solutions->sols[s][i];
-		}
-#if DO_METRICS
-		LOG(Info) << "Test solution #" << s << "/" << _solutions->nsols;
-#endif
-		aListener.OnSolution(*aWork, index_vector, Equihash::DigitBits);
-	}
-
-	aListener.OnHashDone();
-}
-
-__host__ void setBeamHader(blake2b_state &aState, const unsigned char *aData, unsigned aDataSize, const unsigned char *aNonce, unsigned aNonceSize)
-{
-	uint32_t le_N = 150;
-	uint32_t le_K = 5;
-
-	unsigned char personalization[BLAKE2B_PERSONALBYTES] = {};
-	memcpy(personalization, "Beam-PoW", 8);
-	memcpy(personalization + 8, &le_N, 4);
-	memcpy(personalization + 12, &le_K, 4);
-
-	const uint8_t outlen = (512 / 150) * ((150 + 7) / 8);
-
-	static_assert(!((!outlen) || (outlen > BLAKE2B_OUTBYTES)), "!((!outlen) || (outlen > BLAKE2B_OUTBYTES))");
-
-	blake2b_param param = { 0 };
-	param.digest_length = outlen;
-	param.fanout = 1;
-	param.depth = 1;
-
-	memcpy(&param.personal, personalization, BLAKE2B_PERSONALBYTES);
-
-	blake2b_init_param(&aState, &param);
-	blake2b_update(&aState, aData, aDataSize);
-	blake2b_update(&aState, aNonce, aNonceSize);
-}
-
 __host__ void CudaSolver::Solve(BeamWork::Ref aWork, Listener &aListener)
 {
-	blake2b_state state;
+//	blake2b_state state;
 #if DO_METRICS
 	LOG(Info) << "Equihash:";
 	LOG(Info) << "\titems count        = " << Equihash::ItemsCount;
@@ -1272,25 +1055,25 @@ __host__ void CudaSolver::Solve(BeamWork::Ref aWork, Listener &aListener)
 	std::chrono::time_point<std::chrono::system_clock>	_start = std::chrono::system_clock::now();
 	uint64_t cycleStart = __rdtsc();
 #endif
-	setBeamHader(state, aWork->GetData(), aWork->GetDataSize(), aWork->GetNonce(), aWork->GetNonceSize());
+//	setBeamHader(state, aWork->GetData(), aWork->GetDataSize(), aWork->GetNonce(), aWork->GetNonceSize());
 #if DO_METRICS
 	uint64_t cycleSetHeader = __rdtsc();
-#endif
-#if BEAM_WORK_MODE
-	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_ctx, &state, sizeof(blake2b_state), cudaMemcpyHostToDevice));
-#else
-	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_h, &aState.h, sizeof(u64) * 8, cudaMemcpyHostToDevice));
 #endif
 #if DO_METRICS
 	cudaDeviceSynchronize();
 	uint64_t cycleCopyBlake = __rdtsc();
 #endif
-	ThrowIfCudaErrors(cudaMemset(&_deviceEq->edata, 0, sizeof(_deviceEq->edata)));
+	ThrowIfCudaErrors(cudaMemset(_deviceEq, 0, sizeof(struct equi)));
 #if DO_METRICS
 	ThrowIfCudaErrors(cudaDeviceSynchronize());
 	uint64_t cycleMemset = __rdtsc();
 #endif
-	stage_init << <(Equihash::BlakesCount + 255) / 256, 256 >> >(_deviceEq, (BaseMap)(_memory.baseMap), (Items)_memory.units[2]);
+	ulonglong4 blockHeader;
+	blockHeader.x = reinterpret_cast<ulonglong4*>(aWork->GetData())->x;
+	blockHeader.y = reinterpret_cast<ulonglong4*>(aWork->GetData())->y;
+	blockHeader.z = reinterpret_cast<ulonglong4*>(aWork->GetData())->z;
+	blockHeader.w = reinterpret_cast<ulonglong4*>(aWork->GetData())->w;
+	stage_init << <(Equihash::BlakesCount + 255) / 256, 256 >> >(_deviceEq, (BaseMap)(_memory.baseMap), (Items)_memory.units[2], blockHeader.x, blockHeader.y, blockHeader.z, blockHeader.w, aWork->_nonce);
 #if DO_METRICS
 	ThrowIfCudaErrors(cudaDeviceSynchronize());
 	uint64_t cycleDigit_0 = __rdtsc();
@@ -1339,7 +1122,7 @@ __host__ void CudaSolver::Solve(BeamWork::Ref aWork, Listener &aListener)
 	}
 	scontainerreal *_solutions = &_hostEq->edata.srealcont;
 #else
-	ThrowIfCudaErrors(cudaMemcpy(_solutions, &_deviceEq->edata.srealcont, sizeof(scontainerreal), cudaMemcpyDeviceToHost));
+	ThrowIfCudaErrors(cudaMemcpy(_solutions, &_deviceEq->srealcont, sizeof(scontainerreal), cudaMemcpyDeviceToHost));
 #endif
 #if DO_METRICS
 	ThrowIfCudaErrors(cudaDeviceSynchronize());
@@ -1393,149 +1176,7 @@ __host__ void CudaSolver::Solve(BeamWork::Ref aWork, Listener &aListener)
 
 	aListener.OnHashDone();
 }
-#if DEEP_CUDA_DEBUG
-//=================================================================================================
 
-#include "CudaSolver-150-5-debug.cuh"
-
-//=================================================================================================
-#else
-__host__ void CudaSolver::Test(blake2b_state &aState, Listener &aListener)
-{
-#if DO_METRICS
-	LOG(Info) << "Equihash:";
-	LOG(Info) << "\titems count        = " << Equihash::ItemsCount;
-	LOG(Info) << "\tbucket bits        = " << Equihash::BucketBits;
-	LOG(Info) << "\tbuckets count      = " << Equihash::BucketsCount;
-	LOG(Info) << "\trest bits          = " << Equihash::RestBits;
-	LOG(Info) << "\trests count        = " << Equihash::RestsCount;
-	LOG(Info) << "\tslots count        = " << Equihash::SlotsCount;
-	LOG(Info) << "\tmemory unit        = " << (Equihash::MemoryUnitSize32 / (1024 * 1024)) << "M u32 items";
-	LOG(Info) << "\tunit size          = " << ((sizeof(u32)*Equihash::MemoryUnitSize32) / (1024 * 1024)) << "M";
-
-	std::chrono::time_point<std::chrono::system_clock>	_start = std::chrono::system_clock::now();
-	uint64_t cycleStart = __rdtsc();
-#endif
-#if DO_METRICS
-	uint64_t cycleSetHeader = __rdtsc();
-#endif
-#if BEAM_WORK_MODE
-	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_ctx, &aState, sizeof(blake2b_state), cudaMemcpyHostToDevice));
-#else
-	ThrowIfCudaErrors(cudaMemcpy(&_deviceEq->blake_h, &aState.h, sizeof(u64) * 8, cudaMemcpyHostToDevice));
-#endif
-#if DO_METRICS
-	cudaDeviceSynchronize();
-	uint64_t cycleCopyBlake = __rdtsc();
-#endif
-	ThrowIfCudaErrors(cudaMemset(&_deviceEq->edata, 0, sizeof(_deviceEq->edata)));
-#if DO_METRICS
-	ThrowIfCudaErrors(cudaDeviceSynchronize());
-	uint64_t cycleMemset = __rdtsc();
-#endif
-	stage_init << <(Equihash::BlakesCount + 255) / 256, 256 >> >(_deviceEq, (BaseMap)(_memory.baseMap), (Items)_memory.units[2]);
-#if DO_METRICS
-	ThrowIfCudaErrors(cudaDeviceSynchronize());
-	uint64_t cycleDigit_0 = __rdtsc();
-#endif
-	stage_1<SSM> << < Equihash::BucketsCount, 256 >> >(_deviceEq, (Items)_memory.units[2], (Items4)_memory.units[9], (Pairs)_memory.units[0]);
-#if DO_METRICS
-	ThrowIfCudaErrors(cudaDeviceSynchronize());
-	uint64_t cycleDigit_1 = __rdtsc();
-#endif
-	stage_2<SSM> << < Equihash::BucketsCount, 256 >> >(_deviceEq, (Items4)_memory.units[9], (Items3)_memory.units[6], (Pairs)_memory.units[2]);
-#if DO_METRICS
-	ThrowIfCudaErrors(cudaDeviceSynchronize());
-	uint64_t cycleDigit_2 = __rdtsc();
-#endif
-	stage_3<SSM> << < Equihash::BucketsCount, 256 >> >(_deviceEq, (Items3)_memory.units[6], (Items2)_memory.units[9], (Pairs)_memory.units[4]);
-#if DO_METRICS
-	ThrowIfCudaErrors(cudaDeviceSynchronize());
-	uint64_t cycleDigit_3 = __rdtsc();
-#endif
-	stage_4<SSM> << < Equihash::BucketsCount, 256 >> >(_deviceEq, (Items2)_memory.units[9], (Items2)_memory.units[11], (Pairs)_memory.units[6]);
-#if DO_METRICS
-	ThrowIfCudaErrors(cudaDeviceSynchronize());
-	uint64_t cycleDigit_4 = __rdtsc();
-#endif
-	stage_last<SSM> << < Equihash::BucketsCount, 256 >> >(_deviceEq, (BaseMap)(_memory.baseMap), (uint2*)(_memory.units[0]), (Items2)_memory.units[11]);
-#if DO_METRICS
-	ThrowIfCudaErrors(cudaDeviceSynchronize());
-	uint64_t cycleDigit_5 = __rdtsc();
-#endif
-#if DEEP_CUDA_DEBUG
-	ThrowIfCudaErrors(cudaMemcpy(_hostEq, _deviceEq, sizeof(equi), cudaMemcpyDeviceToHost));
-	u32 m[4] = { 0, 0, 0, 0 };
-	for (u32 i = 0; i < Equihash::BucketsCount; i++) {
-		if (_hostEq->edata.nslots[0][i] > m[0]) {
-			m[0] = _hostEq->edata.nslots[0][i];
-		}
-		if (_hostEq->edata.nslots[1][i] > m[1]) {
-			m[1] = _hostEq->edata.nslots[1][i];
-		}
-		if (_hostEq->edata.nslots[2][i] > m[2]) {
-			m[2] = _hostEq->edata.nslots[2][i];
-		}
-		if (_hostEq->edata.nslots[3][i] > m[3]) {
-			m[3] = _hostEq->edata.nslots[3][i];
-		}
-	}
-	scontainerreal *_solutions = &_hostEq->edata.srealcont;
-#else
-	ThrowIfCudaErrors(cudaMemcpy(_solutions, &_deviceEq->edata.srealcont, sizeof(scontainerreal), cudaMemcpyDeviceToHost));
-#endif
-#if DO_METRICS
-	ThrowIfCudaErrors(cudaDeviceSynchronize());
-	uint64_t cycleCopySol = __rdtsc();
-
-	double cycleTotal = cycleCopySol - cycleStart;
-
-	LOG(Info) << "cycleSetHeader = " << (cycleSetHeader - cycleStart) << " (" << ((cycleSetHeader - cycleStart) / cycleTotal) << ")";
-	LOG(Info) << "cycleCopyBlake = " << (cycleCopyBlake - cycleSetHeader) << " (" << ((cycleCopyBlake - cycleSetHeader) / cycleTotal) << ")";
-	LOG(Info) << "cycleMemset = " << (cycleMemset - cycleCopyBlake) << " (" << ((cycleMemset - cycleCopyBlake) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_0 = " << (cycleDigit_0 - cycleMemset) << " (" << ((cycleDigit_0 - cycleMemset) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_1 = " << (cycleDigit_1 - cycleDigit_0) << " (" << ((cycleDigit_1 - cycleDigit_0) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_2 = " << (cycleDigit_2 - cycleDigit_1) << " (" << ((cycleDigit_2 - cycleDigit_1) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_3 = " << (cycleDigit_3 - cycleDigit_2) << " (" << ((cycleDigit_3 - cycleDigit_2) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_4 = " << (cycleDigit_4 - cycleDigit_3) << " (" << ((cycleDigit_4 - cycleDigit_3) / cycleTotal) << ")";
-	LOG(Info) << "cycleDigit_5 = " << (cycleDigit_5 - cycleDigit_4) << " (" << ((cycleDigit_5 - cycleDigit_4) / cycleTotal) << ")";
-	LOG(Info) << "cycleCopySol = " << (cycleCopySol - cycleDigit_5) << " (" << ((cycleCopySol - cycleDigit_5) / cycleTotal) << ")";
-	LOG(Info) << "cycleTotal = " << (uint64_t)cycleTotal;
-	LOG(Info) << "time = " << (unsigned)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - _start).count() << " ms";
-
-	LOG(Info) << "Solutions count: " << _solutions->nsols;
-#endif
-	if (_solutions->nsols > MAXREALSOLS) {
-		LOG(Info) << "Missing sols: " << (_solutions->nsols - MAXREALSOLS);
-	}
-
-	for (u32 s = 0; (s < _solutions->nsols) && (s < MAXREALSOLS); s++)
-	{
-		// remove dups on CPU (dup removal on GPU is not fully exact and can pass on some invalid _solutions)
-		if (duped(_solutions->sols[s])) {
-			continue;
-		}
-#if 1
-		// perform sort of pairs
-		for (uint32_t level = 0; level < WK; level++) {
-			for (uint32_t i = 0; i < (1 << WK); i += (2 << level)) {
-				sort_pair(&_solutions->sols[s][i], 1 << level);
-			}
-		}
-#endif
-		std::vector<uint32_t> index_vector(PROOFSIZE);
-		for (u32 i = 0; i < PROOFSIZE; i++) {
-			index_vector[i] = _solutions->sols[s][i];
-		}
-#if DO_METRICS
-		LOG(Info) << "Test solution #" << s << "/" << _solutions->nsols;
-#endif
-		aListener.OnSolution(EquihashWork(), index_vector, Equihash::DigitBits);
-	}
-
-	aListener.OnHashDone();
-}
-#endif
 __host__ CudaSolver::~CudaSolver()
 {
 #if DEEP_CUDA_DEBUG

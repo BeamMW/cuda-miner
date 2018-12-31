@@ -14,7 +14,7 @@
 #endif
 #include <iomanip>
 
-#define BEAM_EQUIHASH_VERSION "1.0.0.76"
+#define BEAM_EQUIHASH_VERSION "1.0.0.77"
 
 static void PrintVersion()
 {
@@ -176,20 +176,26 @@ bool EquihashFarm::Init(int argc, char **argv)
 
 	std::string server;
 	std::string port;
-	std::string user;
-	std::string worker;
-	std::string password;
 	std::string key;
-	bool poolMode = false;
 
 	for (CommandLineReader cmd(argc, argv); cmd.hasToken(); cmd.pop()) {
 		if (cmd.isLongOption()) {
 			if (cmd.getName() == "--server") {
+				std::string value;
 				if (cmd.hashValue()) {
-					cmd.getValue().toString(server);
+					cmd.getValue().toString(value);
 				}
 				else if (cmd.pop()) {
-					server = cmd.getRaw();
+					value = cmd.getRaw();
+				}
+				if (!value.empty()) {
+					if (const char *cp = strchr(value.c_str(), ':')) {
+						port = cp + 1;
+						server.assign(value.c_str(), cp - value.c_str());
+					}
+					else {
+						server = value;
+					}
 				}
 				continue;
 			}
@@ -199,57 +205,6 @@ bool EquihashFarm::Init(int argc, char **argv)
 				}
 				else if (cmd.pop()) {
 					port = cmd.getRaw();
-				}
-				continue;
-			}
-			if (cmd.getName() == "--pool") {
-				std::string pool;
-				if (cmd.hashValue()) {
-					cmd.getValue().toString(pool);
-				}
-				else if (cmd.pop()) {
-					pool = cmd.getRaw();
-				}
-				if (!pool.empty()) {
-					if (const char *cp = strchr(pool.c_str(), ':')) {
-						port = cp + 1;
-						server.assign(pool.c_str(), cp - pool.c_str());
-					}
-					poolMode = true;
-				}
-				continue;
-			}
-			if (cmd.getName() == "--user") {
-				if (cmd.hashValue()) {
-					cmd.getValue().toString(user);
-				}
-				else if (cmd.pop()) {
-					user = cmd.getRaw();
-				}
-				if (!user.empty()) {
-					if (const char *cp = strchr(user.c_str(), '.')) {
-						int length = (int)(cp - user.c_str());
-						worker = cp + 1;
-						user.resize(length);
-					}
-				}
-				continue;
-			}
-			if (cmd.getName() == "--worker") {
-				if (cmd.hashValue()) {
-					cmd.getValue().toString(worker);
-				}
-				else if (cmd.pop()) {
-					worker = cmd.getRaw();
-				}
-				continue;
-			}
-			if (cmd.getName() == "--password") {
-				if (cmd.hashValue()) {
-					cmd.getValue().toString(password);
-				}
-				else if (cmd.pop()) {
-					password = cmd.getRaw();
 				}
 				continue;
 			}
@@ -413,14 +368,14 @@ bool EquihashFarm::Init(int argc, char **argv)
 		LOG(Info) << "No API started";
 	}
 
-	_worker = new EquihashStratumWorker(poolMode, key);
+	_worker = new EquihashStratumWorker(key);
 	if (!_worker) {
 		LOG(Fatal) << "Create worker error.";
 		return false;
 	}
 
 	if (server.empty()) {
-		LOG(Fatal) << "No pool server address.";
+		LOG(Fatal) << "No server address.";
 		return false;
 	}
 	else {
@@ -433,27 +388,6 @@ bool EquihashFarm::Init(int argc, char **argv)
 	}
 	else {
 		_worker->SetPort(port);
-	}
-
-	if (poolMode) {
-		if (user.empty()) {
-			LOG(Fatal) << "No pool user.";
-			return false;
-		}
-		else {
-			_worker->SetUser(user);
-		}
-
-		if (worker.empty()) {
-			LOG(Fatal) << "No pool worker.";
-			return false;
-		}
-		else {
-			_worker->SetWorker(worker);
-		}
-	}
-	if (!password.empty()) {
-		_worker->SetPassword(password);
 	}
 #if USE_CUDA
 	if (_useNvidia) {
