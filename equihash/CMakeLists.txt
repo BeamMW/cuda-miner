@@ -6,12 +6,8 @@ set(SOURCES
     BeamWork.cpp
     BeamWork.hpp
     equihash-miner.cpp
-    EquihashSolution.cpp
-    EquihashSolution.hpp
     EquihashStratumWorker.cpp
     EquihashStratumWorker.hpp
-    EquihashWork.cpp
-    EquihashWork.hpp
     pch.cpp
     pch.hpp
     Solver.hpp
