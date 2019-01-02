@@ -1,12 +1,11 @@
-# cmake .. -DCMAKE_C_COMPILER=gcc-6 -DCMAKE_CXX_COMPILER=g++-6
-
 cmake_minimum_required(VERSION 3.1)
 
 set(VERSION_MAJOR 1)
 set(VERSION_MINOR 0)
 set(VERSION_REVISION 0)
 
-project(beam-equihash VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_REVISION})
+project(beam-cuda-miner VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_REVISION})
+set(TARGET_NAME beam-cuda-miner)
 
 message("BEAM_VERSION: ${PROJECT_VERSION}")
 

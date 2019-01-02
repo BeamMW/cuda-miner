@@ -18,19 +18,15 @@ set(SOURCES
 
 set(CUDA_LIB_PATH ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs/)
 
-add_executable(beam-equihash ${SOURCES})
+add_executable(${TARGET_NAME} ${SOURCES})
 
-target_include_directories(beam-equihash PRIVATE .. ../beam)
-target_link_libraries(beam-equihash PRIVATE base core beam ${OPENSSL_LIBSSL} ${OPENSSL_LIBCRYPTO})
-
-if (EQUIHASHCL)
-    target_link_libraries(beam-equihash PRIVATE equihash-cl)
-endif()
+target_include_directories(${TARGET_NAME} PRIVATE .. ../beam)
+target_link_libraries(${TARGET_NAME} PRIVATE base core beam ${OPENSSL_LIBSSL} ${OPENSSL_LIBCRYPTO})
 
 if (EQUIHASHCUDA)
     if(MSVC)
-        target_link_libraries(beam-equihash PRIVATE equihash-cuda)
+        target_link_libraries(${TARGET_NAME} PRIVATE equihash-cuda)
     else()
-        target_link_libraries(beam-equihash PRIVATE equihash-cuda -L${CUDA_LIB_PATH} -lcuda)
+        target_link_libraries(${TARGET_NAME} PRIVATE equihash-cuda -L${CUDA_LIB_PATH} -lcuda)
     endif()
 endif()

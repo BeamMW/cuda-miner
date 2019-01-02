@@ -59,9 +59,7 @@ void CudaMiner::SetWork(core::Work::Ref aWork)
 		std::unique_lock<std::mutex> lock(_cs);
 		_work = aWork;
 	}
-	if (_work) {
-		_eventReady.Set();
-	}
+	_eventReady.Set();
 }
 
 void CudaMiner::Workflow()
@@ -77,11 +75,16 @@ void CudaMiner::Workflow()
 					current = _work;
 				}
 			}
-			unsigned inc = Search(*current);
+			unsigned inc = 0;
+			if (current) {
+				inc = Search(*current);
+			}
 			if (_exit || -1 == inc) {
 				break;
 			}
-			current->Increment(inc);
+			if (current) {
+				current->Increment(inc);
+			}
 		}
 		Done();
 	}

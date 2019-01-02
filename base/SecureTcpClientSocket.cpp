@@ -104,7 +104,13 @@ int SecureTcpClientSocket::Recv(char* buf, size_t maxLen, DWORD aRecvTimeout)
 		return -1;
 	}
 
-	int ret = SSL_read(_ssl, buf, (int)maxLen);
+	int ret;
+	try {
+		ret = SSL_read(_ssl, buf, (int)maxLen);
+	}
+	catch (...) {
+		return -1;
+	}
 
 	if (ret > 0) {
 		readLen += ret;
