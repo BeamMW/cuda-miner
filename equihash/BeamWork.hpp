@@ -10,6 +10,7 @@ public:
 
 public:
 	BeamWork();
+	BeamWork(const std::string &aBlockHeader, const std::string &aNonce);
 
 	unsigned char * GetNonce() override;
 	uint32_t GetNonceSize() const override;

@@ -16,6 +16,7 @@ namespace core
 		Work::Ref GetWork() override;
 		void SetWork(Work::Ref aWork) override;
 		void CancelWork(const std::string &aId) override;
+		bool IsCurrentWork(const core::Work &aWork) const override;
 		void PostSolution(core::Solution::Ref aSolution) const override;
 
 	protected:

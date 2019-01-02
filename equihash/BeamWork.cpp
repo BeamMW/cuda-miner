@@ -30,6 +30,12 @@ BeamWork::BeamWork()
 {
 }
 
+BeamWork::BeamWork(const std::string &aBlockHeader, const std::string &aNonce) : _input(32, true)
+{
+	_input.Import(aBlockHeader, true);
+	HexToBin(aNonce, (unsigned char*)&_nonce, 8);
+}
+
 unsigned char * BeamWork::GetNonce()
 {
 	return (unsigned char *)&_nonce;

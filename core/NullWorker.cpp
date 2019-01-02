@@ -26,6 +26,11 @@ void NullWorker::CancelWork(const std::string &)
 {
 }
 
+bool NullWorker::IsCurrentWork(const core::Work &aWork) const
+{
+	return false;
+}
+
 void NullWorker::PostSolution(core::Solution::Ref) const
 {
 }

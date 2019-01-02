@@ -30,9 +30,8 @@ message("-- CUDA include dirs ${CUDA_INCLUDE_DIRS}")
 message("------------------------------------------------------------------------")
 
 set(SOURCES
-    blake2b.cuh
     CudaSolver.cu
-    CudaSolver-150-5.cuh
+    CudaSolver-150-5-L.cuh
     CudaSolver.hpp
     EquihashCudaMiner.cpp
     EquihashCudaMiner.hpp

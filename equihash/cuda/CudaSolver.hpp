@@ -57,6 +57,8 @@ struct slot;
 
 struct CudaSolver : public Solver
 {
+	typedef Reference<CudaSolver> Ref;
+
 	const static u32 SSM = 12;
 
 	CudaSolver(const std::string &aId, int aDeviceId);
@@ -70,10 +72,14 @@ protected:
 	std::string			_id;
 	int					_deviceId;
 	cudaDeviceProp		_deviceProps;
-	equi				*_deviceEq;
-	scontainerreal		*_solutions = nullptr;
+	u32					*_solutions = nullptr;
 	struct {
-		u32		*baseMap = nullptr;
-		u32		*units[13];
+		uint4		*unit0 = nullptr;
+		uint4		*unit1 = nullptr;
+		uint4		*unit2 = nullptr;
+		uint2		*unit3 = nullptr;
+		uint4		*unit4 = nullptr;
+		u32			*unit5 = nullptr;
+		u32			*unit6 = nullptr;
 	}					_memory;
 };
