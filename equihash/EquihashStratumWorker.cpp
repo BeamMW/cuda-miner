@@ -187,6 +187,7 @@ EquihashStratumWorker::EquihashStratumWorker(const std::string &aApiKey) : _apiK
 
 bool EquihashStratumWorker::OnConnected()
 {
+	_connectedCounter++;
 	RemoteCall(new LoginCall(*this, _apiKey));
 	return true;
 }

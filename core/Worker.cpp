@@ -86,3 +86,13 @@ const BigInteger & Worker::GetExtraNonce() const
 {
 	return _extraNonce;
 }
+
+unsigned Worker::GetConnectedCount() const
+{
+	return _connectedCounter;
+}
+
+unsigned Worker::GetWorkCount() const
+{
+	return _workCounter;
+}

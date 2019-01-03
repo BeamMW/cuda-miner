@@ -14,7 +14,7 @@ CudaMiner::CudaMiner(CudaMiner::CudaDevice::Ref aDevice) : _device(aDevice)
 {
 	if (_device) {
 		if (sIdIsCudaId) {
-#if 0
+#if 1
 			_id = UintToString(_device->_cudaDeviceId);
 #else
 			_id = UintToString(_index);

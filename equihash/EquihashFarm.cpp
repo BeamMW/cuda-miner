@@ -15,11 +15,11 @@
 #endif
 #include <iomanip>
 
-#define BEAM_EQUIHASH_VERSION "1.0.0.81"
+#define BEAM_EQUIHASH_VERSION "1.0.0.82"
 
 static void PrintVersion()
 {
-	printf("beam-equihash version " BEAM_EQUIHASH_VERSION "\n");
+	printf("beam-cuda-miner version " BEAM_EQUIHASH_VERSION "\n");
 }
 
 class PrintStatisticsTask : public core::Service::ITask
@@ -490,42 +490,40 @@ bool EquihashFarm::Init(int argc, char **argv)
 
 	return true;
 }
-#if 0
-void EquihashFarm::Run()
-{
-	WCHAR  ch = 0;
-	DWORD  count;
-	HANDLE hstdin = GetStdHandle(STD_INPUT_HANDLE);
 
-	while (ch != 27) {
-		WaitForSingleObject(hstdin, INFINITE);
-		ReadConsole(hstdin, &ch, 1, &count, NULL);
-	}
-}
-#endif
 void EquihashFarm::PrintStatistics() const
 {
-	core::Metrics metrics;
-	core::Metrics total;
-	core::HardwareMetrics hardwareMetrics;
-	total.Clear();
-	for (auto miner : _miners) {
-		miner->GetMetrics(metrics);
-		miner->GetHardwareMetrics(hardwareMetrics);
-		LOG(Info)
-			<< "GPU:"   << metrics.name
-			<< ": A:"   << metrics.accepted << "/R:" << metrics.rejected
-			<< ", t:"   << (unsigned)hardwareMetrics.t
-			<< "C P:"   << (unsigned)hardwareMetrics.P
-			<< "W fan:" << (unsigned)hardwareMetrics.fan
-			<< "% "     << std::setprecision(3) << float(metrics.solutionRateNow) << "/" << std::setprecision(3) << float(metrics.solutionRateTotal) << " Sol/s";
-		total += metrics;
-	}
-	if (_miners.size() > 1) {
-		LOG(Info)
-			<< "Total: A:" << total.accepted << "/R:" << total.rejected
-			<< " " << std::setprecision(3) << float(total.solutionRateNow) << "/" << std::setprecision(3) << float(total.solutionRateTotal) << " Sol/s ("
-			<< std::setprecision(3) << float(total.hashRateNow) << "/" << std::setprecision(3) << float(total.hashRateTotal) << " H/s)";
+	if (_worker) {
+		if (0 == _worker->GetConnectedCount()) {
+			LOG(Info) << "Waiting for server connection ...";
+			return;
+		}
+		if (0 == _worker->GetWorkCount()) {
+			LOG(Info) << "Waiting a job from the server ...";
+			return;
+		}
+		core::Metrics metrics;
+		core::Metrics total;
+		core::HardwareMetrics hardwareMetrics;
+		total.Clear();
+		for (auto miner : _miners) {
+			miner->GetMetrics(metrics);
+			miner->GetHardwareMetrics(hardwareMetrics);
+			LOG(Info)
+				<< "GPU:" << metrics.name
+				<< ": A:" << metrics.accepted << "/R:" << metrics.rejected
+				<< ", t:" << (unsigned)hardwareMetrics.t
+				<< "C P:" << (unsigned)hardwareMetrics.P
+				<< "W fan:" << (unsigned)hardwareMetrics.fan
+				<< "% " << std::setprecision(3) << float(metrics.solutionRateNow) << "/" << std::setprecision(3) << float(metrics.solutionRateTotal) << " Sol/s";
+			total += metrics;
+		}
+		if (_miners.size() > 1) {
+			LOG(Info)
+				<< "Total: A:" << total.accepted << "/R:" << total.rejected
+				<< " " << std::setprecision(3) << float(total.solutionRateNow) << "/" << std::setprecision(3) << float(total.solutionRateTotal) << " Sol/s ("
+				<< std::setprecision(3) << float(total.hashRateNow) << "/" << std::setprecision(3) << float(total.hashRateTotal) << " H/s)";
+		}
 	}
 }
 
@@ -599,7 +597,7 @@ void EquihashFarm::BuildStatistics(std::string &aMsg)
 	aMsg += std::to_string(time(nullptr) - _started);
 	aMsg += ",";
 	aMsg += "\"ver\":\"" BEAM_EQUIHASH_VERSION "\",";
-	aMsg += "\"algo\":\"ethash\",";
+	aMsg += "\"algo\":\"equihash\",";
 	aMsg += "\"hs_total\":";
 	aMsg += std::to_string(total.hashRateNow / 1000);
 	aMsg += "}";

@@ -330,6 +330,9 @@ Work::Ref StratumWorker::GetWork()
 
 void StratumWorker::SetWork(Work::Ref aWork)
 {
+	if (aWork) {
+		_workCounter++;
+	}
 	_work = aWork;
 	_eventWork.Set();
 }

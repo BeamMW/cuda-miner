@@ -22,6 +22,7 @@ namespace core
 		virtual void SetWork(Work::Ref aWork) = 0;
 		virtual void CancelWork(const std::string &aId) = 0;
 		virtual bool IsCurrentWork(const core::Work &aWork) const = 0;
+		virtual unsigned GetWorkCount() const;
 
 		virtual const std::string & GetServer() const;
 		virtual void SetServer(const std::string &aServer);
@@ -34,6 +35,7 @@ namespace core
 		virtual const std::string & GetPassword() const;
 		virtual void SetPassword(const std::string &aPassword);
 
+		virtual unsigned GetConnectedCount() const;
 		virtual bool IsConnected() const;
 		virtual bool IsAuthorized() const;
 
@@ -59,6 +61,8 @@ namespace core
 		core::Transport::Ref	_transport;
 		bool					_connected = false;
 		bool					_authorized = false;
+		unsigned				_connectedCounter = 0;
+		unsigned				_workCounter = 0;
 		BigInteger				_target;
 		BigInteger				_extraNonce;
 	};
