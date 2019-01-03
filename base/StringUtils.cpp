@@ -30,3 +30,20 @@ void binToString(std::string &aDst, const unsigned char *aSrc, size_t aLength, b
 		*dst = 0;
 	}
 }
+
+void tokenizeString(const std::string &aStr, char aDelimiter, std::vector<std::string> &aTokens)
+{
+	// Skip delimiters at beginning.
+	std::string::size_type lastPos = aStr.find_first_not_of(aDelimiter, 0);
+	// Find first "non-delimiter".
+	std::string::size_type pos = aStr.find_first_of(aDelimiter, lastPos);
+
+	while (std::string::npos != pos || std::string::npos != lastPos)
+	{  // Found a token, add it to the vector.
+		aTokens.push_back(aStr.substr(lastPos, pos - lastPos));
+		// Skip delimiters.  Note the "not_of"
+		lastPos = aStr.find_first_not_of(aDelimiter, pos);
+		// Find next "non-delimiter"
+		pos = aStr.find_first_of(aDelimiter, lastPos);
+	}
+}

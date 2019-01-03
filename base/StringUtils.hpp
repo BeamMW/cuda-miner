@@ -35,3 +35,5 @@ inline char hexToInt(char aChar)
 }
 
 void binToString(std::string &aDst, const unsigned char *aSrc, size_t aLength, bool aDstBigEndian, bool aSrcBigEndian);
+
+void tokenizeString(const std::string &aStr, char aDelimiter, std::vector<std::string> &aTokens);
