@@ -20,8 +20,25 @@ before_install:
   - wget "https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh"
   - sudo sh cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr
   - eval "CC=gcc-7 && CXX=g++-7"
+env: 
+  - BUILD_TYPE=Release
+  - OS_FOLDER=linux
 script:
   - mkdir build
   - cd build
   - cmake -DCMAKE_BUILD_TYPE=Release .. 
   - make -j4
+before_script:
+  - BEAM_VERSION="1.0.$(git rev-list HEAD --count)"
+  - curl -sL https://raw.githubusercontent.com/travis-ci/artifacts/master/install | bash
+
+after_success:
+  # deploy using ftp server
+  - BUILDS_SERVER_PATH=${BUILD_SERVER}/files/$TRAVIS_BRANCH/$(date +%Y.%m.%d)/$BUILD_TYPE/$OS_FOLDER
+  - tar -cvzf cuda-miner-$BEAM_VERSION.tar.gz --directory=$HOME/build/BeamMW/cuda-miner/build beam-cuda-miner
+
+  # upload binaries to FTP
+  - curl --retry 3 --ftp-create-dirs -T cuda-miner-$BEAM_VERSION.tar.gz $BUILDS_SERVER_PATH/
+
+  # upload binaries to S3
+  - artifacts upload --target-paths "$TRAVIS_BRANCH/$(date +%Y.%m.%d)/$BUILD_TYPE/$OS_FOLDER/" cuda-miner-$BEAM_VERSION.tar.gz
