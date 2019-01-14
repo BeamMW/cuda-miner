@@ -30,7 +30,7 @@ on_success:
 
     set BEAM_VERSION=1.0.%BEAM_VERSION_REVISION%
 
-    7z a c:/projects/cuda-miner/%BUILD_CONFIG%/cuda-miner-%BEAM_VERSION%.zip c:/projects/cuda-miner/%BUILD_CONFIG%/beam-cuda-miner.exe
+    7z a c:/projects/cuda-miner/%BUILD_CONFIG%/cuda-miner-%BEAM_VERSION%.zip c:/projects/cuda-miner/equihash/%BUILD_CONFIG%/beam-cuda-miner.exe
 
     set BUILDS_SERVER_PATH=%BUILD_SERVER%/files/%APPVEYOR_REPO_BRANCH%/%DATE%/Release/win
 
