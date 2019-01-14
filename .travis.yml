@@ -29,7 +29,6 @@ script:
   - make -j4
 before_script:
   - BEAM_VERSION="1.0.$(git rev-list HEAD --count)"
-  - curl -sL https://raw.githubusercontent.com/travis-ci/artifacts/master/install | bash
 
 after_success:
   # deploy using ftp server
@@ -38,6 +37,3 @@ after_success:
 
   # upload binaries to FTP
   - curl --retry 3 --ftp-create-dirs -T cuda-miner-$BEAM_VERSION.tar.gz $BUILDS_SERVER_PATH/
-
-  # upload binaries to S3
-  - artifacts upload --target-paths "$TRAVIS_BRANCH/$(date +%Y.%m.%d)/$BUILD_TYPE/$OS_FOLDER/" cuda-miner-$BEAM_VERSION.tar.gz
