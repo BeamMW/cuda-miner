@@ -13,11 +13,15 @@ addons:
 before_install:
   - wget https://developer.nvidia.com/compute/cuda/10.0/Prod/local_installers/cuda-repo-ubuntu1404-10-0-local-10.0.130-410.48_1.0-1_amd64
   - sudo dpkg -i cuda-repo-ubuntu1404-10-0-local-10.0.130-410.48_1.0-1_amd64
-  - sudo apt-key add /var/cuda-repo-<version>/7fa2af80.pub
+  - sudo apt-key add /var/cuda-repo-10-0-local-10.0.130-410.48/7fa2af80.pub
   - sudo apt-get update
   - sudo apt-get install cuda
   - export TZ=Etc/GMT-3
   - wget "https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh"
   - sudo sh cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr
   - eval "CC=gcc-7 && CXX=g++-7"
-  
+script:
+  - mkdir build
+  - cd build
+  - cmake -DCMAKE_BUILD_TYPE=Release .. 
+  - make -j4
