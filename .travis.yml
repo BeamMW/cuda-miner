@@ -33,7 +33,7 @@ before_script:
 after_success:
   # deploy using ftp server
   - BUILDS_SERVER_PATH=${BUILD_SERVER}/files/$TRAVIS_BRANCH/$(date +%Y.%m.%d)/$BUILD_TYPE/$OS_FOLDER
-  - tar -cvzf cuda-miner-$BEAM_VERSION.tar.gz --directory=$HOME/build/BeamMW/cuda-miner/build beam-cuda-miner
+  - tar -cvzf cuda-miner-$BEAM_VERSION.tar.gz --directory=$HOME/build/BeamMW/cuda-miner/build/equihash beam-cuda-miner
 
   # upload binaries to FTP
   - curl --retry 3 --ftp-create-dirs -T cuda-miner-$BEAM_VERSION.tar.gz $BUILDS_SERVER_PATH/
